@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Surf Rescue 30 Patrol Log</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header>
+    <div id="header-top">
+      <span>Surf Rescue 30</span>
+    </div>
+    <div id="header-bottom">
+      <span id="header-label">Patrol Log</span>
+      <span id="current-time"></span>
+    </div>
+  </header>
+
+  <!-- Shift action buttons live just below the header -->
+  <div id="shift-controls">
+    <button id="new-patrol-btn" aria-label="Start New Patrol">
+      🏖️ New Patrol
+    </button>
+    <button id="report-btn" aria-label="Share End of Shift Report">
+      📋 End of Shift Report
+    </button>
+  </div>
+
+  <main>
+    <section id="log-section">
+      <h2>Running Log</h2>
+      <div id="log-entries" aria-live="polite" aria-label="Running log entries">
+        <p id="empty-msg">No entries yet. Tap Log Entry to start recording.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Mic button lives at the bottom in the natural thumb zone -->
+  <footer>
+    <p id="status-msg">Tap to record an entry.</p>
+    <button id="dictate-btn" aria-label="Log Entry">
+      🎙️ Log Entry
+    </button>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
