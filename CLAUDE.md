@@ -1,29 +1,47 @@
 # Surf Rescue 30 — Patrol Log
 
-Single-page, mobile-first voice log for surf lifesaving patrols. Plain HTML/CSS/JS: `index.html`, `style.css`, `script.js`. No build step, no dependencies, no backend.
+Mobile-first voice log and toolkit for the Surf Rescue 30 offshore rescue boat (Malabar, Sydney). Plain HTML/CSS/JS served as static files (GitHub Pages). No build step, no framework. The only server piece is the optional weather relay in `relay/` (Cloudflare Worker).
 
 ## Constraints that drive every change
-- **Used on a beach.** Direct sunlight (high contrast only), wet/sandy fingers (large tap targets, no precision gestures), patchy or no signal.
-- **Must never lose an entry.** Any change touching recording, storage, or delete must preserve data on screen lock, reload, app switch, and unexpected recognition end.
-- **No framework or bundler** unless a requirement genuinely can't be met without one. Keep it deployable as static files (GitHub Pages).
-- Speech recognition locale is `en-AU`. Australian spelling in UI copy.
+- **Used on a boat.** Direct sunlight (high contrast only), wet fingers (≥48px targets, every swipe has a button equivalent), patchy signal.
+- **Must never lose an entry.** Recording saves a draft as words arrive; entries, shift and draft live in localStorage and survive reloads, screen lock and the app being closed.
+- **Devices:** mix of iPhone and Android, plus an iPad on the boat. Check layouts at 390px and 820px wide.
+- `en-AU` speech, Australian spelling, 24-hour times in the log.
 
-## App flow
-1. **Start screen** (`#start-screen`): duty pills (Patrol default / Training / Other → text box), patrol date (local date, never `toISOString()`), crew with award codes matching the paper Patrol Operations Log — S skipper and D driver required, up to 3 optional C crew. Names are remembered for autocomplete. No times on/off; those are filled in afterwards.
-2. **Log screen**: tap the shift summary to edit crew without losing entries. New Patrol clears entries and shift and returns to the start screen.
+## Files
+| File | Role |
+|---|---|
+| `index.html` / `style.css` | Start screen, tabs (Log, Weather, Tools, Info), edit dialog |
+| `script.js` | Log, shift/crew, recording, tabs, report |
+| `vocab.js` | Transcript clean-up: place names, mishearings, marine terms, 12/24h times. Phrase hints for Chrome |
+| `places.js` | Generated place list (Central Coast → Illawarra) with OSM coordinates; `confirmed:false` = nickname for the skipper to check |
+| `geo.js` | DDM/DMS formatting, distance/bearing, nearest landmark, position parsing |
+| `coast.js` | Generated coastline + outcrops (South Head → Cape Baily) and pre-computed 2 NM / warning lines |
+| `geofence.js` | 2 NM boundary alarm (watchPosition) and SVG map |
+| `weather.js` | Open-Meteo forecast (direct), BOM + WillyWeather (via relay), Windy map, cached last-good data |
+| `tools.js` | Speed/distance/time, position & bearing, fuel range (rule of thirds) |
+| `config.js` | `relayUrl` (empty until the Worker is deployed) |
+| `sw.js` / `manifest.webmanifest` / `icons/` | App shell cache (network-first), Home Screen install |
+| `relay/` | Cloudflare Worker for BOM XML + WillyWeather (keeps the key secret) |
+| `data-scripts/` | Regenerate `places.js` and `coast.js` from OpenStreetMap |
 
-Storage keys: `surfPatrolLogs` (entries), `surfPatrolShift` (duty/date/crew), `surfPatrolCrewNames` (autocomplete).
+Storage keys: `surfPatrolLogs`, `surfPatrolShift`, `surfPatrolCrewNames`, `surfPatrolDraft`, `surfPatrolTab`, `surfPatrolBoundaryAlarm`, `surfPatrolFuel`, `surfPatrolWx/Bom/Ww` (weather caches).
 
-Devices: a mix of iPhone and Android, plus an iPad on the boat — check layouts at 390px and 820px wide.
+When adding a file the app loads, add it to `SHELL` in `sw.js` and bump `CACHE`.
 
-## Known gaps (as of Oct 2026)
-- Web Speech API in Chrome is server-based — dictation needs network. README's "no internet" claim is inaccurate.
-- No web manifest / service worker, so the page itself isn't available offline.
-- Storage is `localStorage` only; Safari evicts it after 7 days for non-installed sites.
-- No way to edit an entry; delete is touch-swipe only (no mouse/keyboard path).
+## Recording behaviour
+The mic stays live until Stop is tapped. If the browser ends the session (silence, signal drop) it restarts and keeps the transcript; fatal errors (`not-allowed`, `audio-capture`) or >12 restarts in 30 s save what was heard and stop. Entries are timestamped at the start of recording and get a GPS position if available.
+
+## Known gaps (Oct 2026)
+- Dictation needs signal (Chrome/Safari speech is server-based). The app itself opens offline.
+- iOS Safari speech in continuous mode is untested on a real device; restarts may need a tap.
+- The boundary alarm only runs while the app is open on screen (web apps get no background GPS). Notifications on iPhone/iPad need the app added to the Home Screen.
+- Boundary data covers South Head → Cape Baily only; Botany Bay interior is excluded (all within 2 NM).
+- The relay isn't deployed yet; WillyWeather field names in `relay/worker.js` need checking against live responses.
+- `icons/boat.svg` is a drawn stand-in for the real SR30 photo.
 
 ## Verifying changes
-Speech can't be driven in headless Chromium, so the smoke test injects a fake `SpeechRecognition`. Run it after any change to `script.js` or `index.html`:
+Speech can't be driven in headless Chromium, so the smoke test injects a fake `SpeechRecognition`, fake GPS, and mocked weather/relay responses:
 
     node .claude/skills/verify-app/scripts/smoke.mjs
 

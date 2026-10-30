@@ -475,3 +475,484 @@ footer {
     font-size: 0.95rem;
   }
 }
+
+/* ── App shell: tabs + panels ── */
+#app {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#tabs {
+  display: flex;
+  background-color: var(--border);
+  flex-shrink: 0;
+  border-bottom: 2px solid #4488CC;
+}
+
+#tabs [role="tab"] {
+  flex: 1;
+  min-height: 48px;
+  padding: 0.4rem 0.2rem;
+  background: none;
+  border: none;
+  border-bottom: 4px solid transparent;
+  color: #C8D8EE;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#tabs [role="tab"][aria-selected="true"] {
+  color: var(--yellow);
+  border-bottom-color: var(--yellow);
+}
+
+.panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.scroll-panel {
+  overflow-y: auto;
+  padding: 0.6rem 0.6rem 1.2rem;
+  gap: 0.6rem;
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* ── Cards (weather, tools, info) ── */
+.card {
+  background-color: var(--light-bg);
+  color: var(--navy);
+  border-radius: 10px;
+  padding: 0.6rem 0.7rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  flex-shrink: 0;
+}
+
+.card h2,
+.card summary {
+  font-size: 1rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--navy);
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.45rem;
+}
+
+.card summary {
+  cursor: pointer;
+  list-style-position: inside;
+  min-height: 36px;
+}
+
+details.card:not([open]) summary {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.card h3 {
+  font-size: 0.9rem;
+  font-weight: 800;
+  margin: 0.6rem 0 0.25rem;
+}
+
+.card p + p { margin-top: 0.3rem; }
+.card a { color: #0047A0; font-weight: 700; }
+
+.muted { color: #4A5B70; }
+.small { font-size: 0.75rem; font-weight: 500; text-transform: none; letter-spacing: 0; }
+
+.result {
+  font-weight: 700;
+  margin: 0.4rem 0;
+  min-height: 1.2em;
+}
+
+.result .big { font-size: 1.1rem; font-weight: 900; }
+
+.link-list { list-style: none; display: flex; flex-direction: column; gap: 0.35rem; }
+
+.draft-note {
+  color: var(--yellow);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Weather tiles */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.tile {
+  background-color: var(--white);
+  border-radius: 8px;
+  padding: 0.4rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.tile-label { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #4A5B70; }
+.tile-big   { font-size: 1.15rem; font-weight: 900; }
+.tile-small { font-size: 0.75rem; font-weight: 600; color: #4A5B70; }
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  background-color: var(--white);
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.3rem 0.35rem;
+  border-bottom: 1px solid #C9D6E5;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.data-table th { background-color: var(--navy); color: var(--white); font-weight: 800; }
+.data-table td:first-child { font-weight: 800; }
+.wx-table tr.warn td { background-color: #FFE3DC; color: #8A1500; font-weight: 700; }
+.wx-table tr.day-break td { border-top: 3px solid var(--navy); }
+#wx-table-wrap { overflow-x: auto; margin-bottom: 0.4rem; }
+
+.bom-period {
+  background-color: var(--white);
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+  margin-bottom: 0.4rem;
+}
+
+.bom-when { font-weight: 900; margin-bottom: 0.2rem; }
+.bom-warning {
+  background-color: var(--red);
+  color: var(--white);
+  font-weight: 800;
+  border-radius: 6px;
+  padding: 0.3rem 0.45rem;
+  margin-bottom: 0.3rem;
+}
+
+#map-pills { margin-bottom: 0.45rem; }
+#map-pills .pill span { min-height: 44px; padding: 0.55rem 0.2rem; font-size: 0.8rem; }
+#map-wrap iframe {
+  width: 100%;
+  height: 420px;
+  border: 0;
+  border-radius: 8px;
+  display: block;
+}
+
+/* Tools */
+.calc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.5rem;
+}
+
+.calc-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-weight: 800;
+  font-size: 0.8rem;
+}
+
+.card input[type="number"],
+.card input[type="text"],
+.card select {
+  min-height: 48px;
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--navy);
+  background-color: var(--white);
+  border: 2px solid var(--navy);
+  border-radius: 8px;
+}
+
+.unit-input, .time-input {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.unit-input select { width: auto; flex-shrink: 0; }
+.time-input span { font-weight: 800; }
+
+.tool-btn {
+  min-height: 48px;
+  padding: 0.5rem 1rem;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 800;
+  background-color: var(--navy);
+  color: var(--yellow);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* Info */
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 0.6rem;
+}
+.facts dt { font-weight: 800; }
+.call { padding-left: 1.3rem; }
+.call li + li { margin-top: 0.15rem; }
+.phonetic {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
+  gap: 0.2rem 0.4rem;
+  font-weight: 700;
+  margin-bottom: 0.6rem;
+}
+
+/* ── Log entries: position line ── */
+.log-entry .pos {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #4A5B70;
+}
+
+.log-entry:focus-visible {
+  outline: 3px solid var(--yellow);
+  outline-offset: 2px;
+}
+
+/* ── Live recording box ── */
+#live-box {
+  width: 100%;
+  max-width: 520px;
+  background-color: var(--white);
+  color: var(--navy);
+  border: 3px solid var(--red);
+  border-radius: 10px;
+  padding: 0.35rem 0.55rem;
+}
+
+#live-head {
+  font-size: 0.75rem;
+  font-weight: 900;
+  color: var(--red);
+  letter-spacing: 0.08em;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+#live-timer { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+.live-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background-color: var(--red);
+  animation: pulse 1s infinite;
+}
+
+#live-text {
+  font-size: 0.9rem;
+  font-weight: 600;
+  max-height: 4.4em;
+  overflow-y: auto;
+  line-height: 1.4;
+}
+
+#live-text .interim { color: #6B7C90; }
+
+/* ── Footer buttons ── */
+#footer-buttons {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  gap: 0.5rem;
+}
+
+#footer-buttons #dictate-btn { flex: 1; width: auto; }
+
+#mark-btn {
+  flex-shrink: 0;
+  width: 4.2rem;
+  border: 3px solid #4488CC;
+  border-radius: 14px;
+  background-color: var(--navy);
+  color: var(--white);
+  font: inherit;
+  font-size: 1.3rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.1;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 6px 0 #001a33;
+}
+
+#mark-btn span { font-size: 0.7rem; font-weight: 800; }
+#mark-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #001a33; }
+#mark-btn:disabled { opacity: 0.6; }
+
+/* ── Start screen extras ── */
+.row-remove {
+  flex-shrink: 0;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0 0.5rem;
+  border: 2px solid var(--navy);
+  border-radius: 8px;
+  background-color: var(--white);
+  color: var(--red);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.ghost-btn {
+  min-height: 48px;
+  padding: 0.5rem 1rem;
+  background: none;
+  border: 2px dashed var(--white);
+  border-radius: 10px;
+  color: var(--white);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.start-group .ghost-btn,
+.ghost-btn.dark {
+  border-color: var(--navy);
+  color: var(--navy);
+}
+
+#logged-off {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #4A5B70;
+}
+
+/* ── Edit dialog ── */
+#edit-dialog {
+  margin: auto;
+  width: min(92vw, 560px);
+  border: none;
+  border-radius: 14px;
+  padding: 0.8rem;
+  background-color: var(--light-bg);
+  color: var(--navy);
+}
+
+#edit-dialog::backdrop { background-color: rgba(0, 20, 40, 0.7); }
+
+#edit-dialog h2 {
+  font-size: 1rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin-bottom: 0.4rem;
+}
+
+#edit-text {
+  width: 100%;
+  font: inherit;
+  font-size: 1rem;
+  padding: 0.5rem;
+  border: 2px solid var(--navy);
+  border-radius: 8px;
+  resize: vertical;
+}
+
+.dialog-buttons {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.dialog-buttons button {
+  flex: 1;
+  min-height: 48px;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 800;
+  border-radius: 10px;
+  border: 2px solid var(--navy);
+  background-color: var(--white);
+  color: var(--navy);
+  cursor: pointer;
+}
+
+#edit-save { background-color: var(--green); border-color: var(--green); color: var(--white); }
+#edit-delete { color: var(--red); }
+
+@media (min-width: 600px) {
+  #tabs [role="tab"] { font-size: 1rem; }
+  .card { font-size: 1rem; }
+}
+
+/* ── 2 NM boundary ── */
+#boundary-bar {
+  flex-shrink: 0;
+  margin-bottom: 0.4rem;
+  padding: 0.45rem 0.6rem;
+  border: none;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.boundary-inside   { background-color: #0B6B3A; color: var(--white); }
+.boundary-warning  { background-color: var(--yellow); color: var(--navy); }
+.boundary-beyond   { background-color: var(--red); color: var(--white); animation: pulse 1s infinite; }
+.boundary-unmapped { background-color: #4A5B70; color: var(--white); }
+
+#boundary-map {
+  width: 100%;
+  max-height: 70vh;
+  display: block;
+  margin: 0.3rem 0;
+  border-radius: 8px;
+}
+
+.m-sea     { fill: #BFDDF2; }
+.m-coast   { fill: none; stroke: #6B4F1D; stroke-width: 1.6; }
+.m-outcrop { fill: #6B4F1D; stroke: #6B4F1D; stroke-width: 0.6; }
+.m-limit   { fill: none; stroke: var(--red); stroke-width: 2.4; }
+.m-warn    { fill: none; stroke: #C77700; stroke-width: 1.6; stroke-dasharray: 5 4; }
+.m-dot     { fill: var(--navy); }
+.m-label   { font-size: 9px; font-weight: 700; fill: var(--navy); }
+.m-key     { font-size: 10px; font-weight: 800; }
+.m-key-limit { fill: var(--red); }
+.m-key-warn  { fill: #C77700; }
+.m-boat    { stroke: var(--white); stroke-width: 2.5; fill: #0B6B3A; }
+.m-boat-warning { fill: #E0A800; }
+.m-boat-beyond  { fill: var(--red); }
