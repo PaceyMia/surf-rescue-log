@@ -38,7 +38,6 @@ The mic stays live until Stop is tapped. If the browser ends the session (silenc
 - The boundary alarm only runs while the app is open on screen (web apps get no background GPS). Notifications on iPhone/iPad need the app added to the Home Screen.
 - Boundary data covers South Head → Cape Baily only; Botany Bay interior is excluded (all within 2 NM).
 - The relay isn't deployed yet; WillyWeather field names in `relay/worker.js` need checking against live responses.
-- `icons/boat.svg` is a drawn stand-in for the real SR30 photo.
 
 ## Verifying changes
 Speech can't be driven in headless Chromium, so the smoke test injects a fake `SpeechRecognition`, fake GPS, and mocked weather/relay responses:
