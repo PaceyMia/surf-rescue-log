@@ -62,8 +62,9 @@ Tap **New Patrol** at the start of a fresh shift. After a confirmation prompt, t
 
 ### Getting Started
 1. Open `index.html` in a supported browser (Chrome or Edge recommended).
-2. Allow microphone access when prompted.
-3. The live clock in the header confirms the app is running.
+2. On the start screen, pick the **Duty** (Patrol is selected by default; choose Training, or Other and describe it), check the **Date**, and enter the **crew on board**. Skipper (S) and Driver (D) are required; up to three Crew (C) are optional. Names you've used before autocomplete.
+3. Tap **Start Patrol**. Tap the duty and crew bar above the log at any time to correct it — entries are kept.
+4. Allow microphone access when prompted.
 
 ---
 

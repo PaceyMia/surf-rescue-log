@@ -8,10 +8,17 @@ Single-page, mobile-first voice log for surf lifesaving patrols. Plain HTML/CSS/
 - **No framework or bundler** unless a requirement genuinely can't be met without one. Keep it deployable as static files (GitHub Pages).
 - Speech recognition locale is `en-AU`. Australian spelling in UI copy.
 
+## App flow
+1. **Start screen** (`#start-screen`): duty pills (Patrol default / Training / Other → text box), patrol date (local date, never `toISOString()`), crew with award codes matching the paper Patrol Operations Log — S skipper and D driver required, up to 3 optional C crew. Names are remembered for autocomplete. No times on/off; those are filled in afterwards.
+2. **Log screen**: tap the shift summary to edit crew without losing entries. New Patrol clears entries and shift and returns to the start screen.
+
+Storage keys: `surfPatrolLogs` (entries), `surfPatrolShift` (duty/date/crew), `surfPatrolCrewNames` (autocomplete).
+
+Devices: a mix of iPhone and Android, plus an iPad on the boat — check layouts at 390px and 820px wide.
+
 ## Known gaps (as of Oct 2026)
 - Web Speech API in Chrome is server-based — dictation needs network. README's "no internet" claim is inaccurate.
 - No web manifest / service worker, so the page itself isn't available offline.
-- `recognition.onend` discards the transcript when the browser ends the session itself (`userStopped === false`).
 - Storage is `localStorage` only; Safari evicts it after 7 days for non-installed sites.
 - No way to edit an entry; delete is touch-swipe only (no mouse/keyboard path).
 

@@ -18,6 +18,67 @@
     </div>
   </header>
 
+  <!-- Start screen: duty, date and crew on board, filled in before the log opens -->
+  <form id="start-screen" novalidate hidden>
+    <fieldset class="start-group">
+      <legend>Duty</legend>
+      <div class="pills" role="radiogroup">
+        <label class="pill">
+          <input type="radio" name="duty" value="Patrol" checked />
+          <span>Patrol</span>
+        </label>
+        <label class="pill">
+          <input type="radio" name="duty" value="Training" />
+          <span>Training</span>
+        </label>
+        <label class="pill">
+          <input type="radio" name="duty" value="Other" />
+          <span>Other</span>
+        </label>
+      </div>
+      <input id="duty-other" type="text" placeholder="Describe duty, e.g. Search exercise"
+             autocapitalize="sentences" enterkeyhint="next" aria-label="Other duty" hidden />
+    </fieldset>
+
+    <fieldset class="start-group">
+      <legend>Date</legend>
+      <input id="patrol-date" type="date" aria-label="Patrol date" required />
+    </fieldset>
+
+    <fieldset class="start-group">
+      <legend>Crew on board</legend>
+      <div class="crew-row">
+        <span class="award award-s" aria-hidden="true">S</span>
+        <input id="crew-skipper" type="text" placeholder="Skipper (required)" aria-label="Skipper"
+               list="crew-names" autocomplete="off" autocapitalize="words" enterkeyhint="next" required />
+      </div>
+      <div class="crew-row">
+        <span class="award award-d" aria-hidden="true">D</span>
+        <input id="crew-driver" type="text" placeholder="Driver (required)" aria-label="Driver"
+               list="crew-names" autocomplete="off" autocapitalize="words" enterkeyhint="next" required />
+      </div>
+      <div class="crew-row">
+        <span class="award award-c" aria-hidden="true">C</span>
+        <input class="crew-extra" type="text" placeholder="Crew (optional)" aria-label="Crew 1"
+               list="crew-names" autocomplete="off" autocapitalize="words" enterkeyhint="next" />
+      </div>
+      <div class="crew-row">
+        <span class="award award-c" aria-hidden="true">C</span>
+        <input class="crew-extra" type="text" placeholder="Crew (optional)" aria-label="Crew 2"
+               list="crew-names" autocomplete="off" autocapitalize="words" enterkeyhint="next" />
+      </div>
+      <div class="crew-row">
+        <span class="award award-c" aria-hidden="true">C</span>
+        <input class="crew-extra" type="text" placeholder="Crew (optional)" aria-label="Crew 3"
+               list="crew-names" autocomplete="off" autocapitalize="words" enterkeyhint="done" />
+      </div>
+      <datalist id="crew-names"></datalist>
+    </fieldset>
+
+    <p id="start-error" role="alert"></p>
+    <button id="start-btn" type="submit">Start Patrol</button>
+  </form>
+
   <!-- Shift action buttons live just below the header -->
   <div id="shift-controls">
     <button id="new-patrol-btn" aria-label="Start New Patrol">
@@ -29,6 +90,7 @@
   </div>
 
   <main>
+    <button id="shift-summary" type="button" aria-label="Edit duty and crew"></button>
     <section id="log-section">
       <h2>Running Log</h2>
       <div id="log-entries" aria-live="polite" aria-label="Running log entries">

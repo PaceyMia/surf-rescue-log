@@ -5,6 +5,11 @@
   padding: 0;
 }
 
+/* Components below set display, which would otherwise beat the hidden attribute */
+[hidden] {
+  display: none !important;
+}
+
 :root {
   --navy:   #003366;
   --yellow: #FFD700;
@@ -142,6 +147,28 @@ main {
   margin: 0 auto;
 }
 
+/* ── Shift summary (tap to edit duty & crew) ── */
+#shift-summary {
+  flex-shrink: 0;
+  margin-bottom: 0.4rem;
+  padding: 0.45rem 0.6rem;
+  background-color: var(--border);
+  color: var(--white);
+  border: 2px solid #4488CC;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#shift-summary strong {
+  color: var(--yellow);
+}
+
 /* ── Log section ── */
 #log-section {
   background-color: var(--light-bg);
@@ -272,6 +299,160 @@ footer {
   50%       { opacity: 0.75; }
 }
 
+/* ── Start screen (duty, date, crew) ── */
+#start-screen {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0.6rem 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.start-group {
+  border: none;
+  background-color: var(--light-bg);
+  border-radius: 10px;
+  padding: 0.5rem 0.6rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.start-group legend {
+  float: left; /* keeps the legend inside the rounded panel */
+  width: 100%;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--navy);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--navy);
+  padding-bottom: 0.25rem;
+}
+
+.start-group input[type="text"],
+.start-group input[type="date"] {
+  width: 100%;
+  min-height: 52px;
+  padding: 0.5rem 0.7rem;
+  font: inherit;
+  font-size: 1rem; /* 18px — stays above the 16px that makes iOS zoom on focus */
+  font-weight: 600;
+  color: var(--navy);
+  background-color: var(--white);
+  border: 2px solid var(--navy);
+  border-radius: 8px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.start-group input:focus-visible {
+  outline: 3px solid #0055AA;
+  outline-offset: 1px;
+}
+
+.start-group input[aria-invalid="true"] {
+  border-color: var(--red);
+  background-color: #FFF0EC;
+}
+
+.pills {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.pill {
+  flex: 1;
+  position: relative;
+}
+
+.pill input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+}
+
+.pill span {
+  display: block;
+  min-height: 52px;
+  padding: 0.75rem 0.4rem;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--navy);
+  background-color: var(--white);
+  border: 2px solid var(--navy);
+  border-radius: 999px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.pill input:checked + span {
+  background-color: var(--navy);
+  color: var(--yellow);
+}
+
+.pill input:focus-visible + span {
+  outline: 3px solid #0055AA;
+  outline-offset: 2px;
+}
+
+.crew-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.award {
+  flex-shrink: 0;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  font-size: 1.1rem;
+}
+
+.award-s { background-color: var(--red);    color: var(--white); }
+.award-d { background-color: var(--yellow); color: var(--navy); }
+.award-c { background-color: var(--navy);   color: var(--white); }
+
+#start-error {
+  color: var(--yellow);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+#start-error:empty {
+  display: none;
+}
+
+#start-btn {
+  width: 100%;
+  padding: 1rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+  background-color: var(--green);
+  color: var(--white);
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  box-shadow: 0 6px 0 #007A3D;
+  touch-action: manipulation;
+}
+
+#start-btn:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #007A3D;
+}
+
 /* ── Responsive: large tablets / desktops ── */
 @media (min-width: 600px) {
   #header-top,
@@ -285,8 +466,12 @@ footer {
   #report-btn {
     font-size: 1rem;
   }
-  #dictate-btn {
+  #dictate-btn,
+  #start-btn {
     font-size: 1.6rem;
     padding: 1.2rem 1.5rem;
+  }
+  #shift-summary {
+    font-size: 0.95rem;
   }
 }
