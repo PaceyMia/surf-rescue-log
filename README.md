@@ -12,6 +12,19 @@ The app requires no installation, no account, and no internet connection after t
 
 ---
 
+## ✨ What's in the app (Oct 2026)
+
+- **Start of patrol:** duty (Patrol / Training / Other), date, and crew with S/D/C codes. Log crew off or add crew mid-patrol; changes are logged with the time.
+- **Voice log:** stays recording until you tap Stop, shows words as they're heard, corrects local place names, marine terms and times (14:30 hrs), and stamps each entry with GPS position and the nearest landmark. Tap an entry to edit or delete it. 📍 **Mark** logs your position instantly.
+- **Weather tab:** BOM coastal waters forecast and warnings (once the relay is set up), wind/swell/sea forecast off Malabar, tides and observed wind from WillyWeather, and a live Windy map (wind, waves, radar, satellite).
+- **Tools tab:** 2 NM boundary alarm with map, speed/distance/time (knots, NM), position converter with distance and bearing to any landmark, fuel range.
+- **Info tab:** SR30 quick facts, MAYDAY / PAN-PAN / SÉCURITÉ formats, phonetic alphabet, Beaufort scale, patrol form categories.
+- **End of shift:** report with duty, crew, logged-off crew, every entry and its position, shared through the phone's share sheet.
+
+**Install it:** open the site in Safari (iPhone/iPad) or Chrome (Android) → Share → **Add to Home Screen**. It then opens full-screen, works without signal, and can show boundary notifications.
+
+> The section below describes the original version and is kept for reference.
+
 ## ✨ Key Features
 
 ### 🎙️ Voice Dictation via Web Speech API
@@ -62,8 +75,9 @@ Tap **New Patrol** at the start of a fresh shift. After a confirmation prompt, t
 
 ### Getting Started
 1. Open `index.html` in a supported browser (Chrome or Edge recommended).
-2. Allow microphone access when prompted.
-3. The live clock in the header confirms the app is running.
+2. On the start screen, pick the **Duty** (Patrol is selected by default; choose Training, or Other and describe it), check the **Date**, and enter the **crew on board**. Skipper (S) and Driver (D) are required; up to three Crew (C) are optional. Names you've used before autocomplete.
+3. Tap **Start Patrol**. Tap the duty and crew bar above the log at any time to correct it — entries are kept.
+4. Allow microphone access when prompted.
 
 ---
 

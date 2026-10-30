@@ -2,8 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#CC2200" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="SR30 Log" />
   <title>Surf Rescue 30 Patrol Log</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/icon-180.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -18,33 +23,321 @@
     </div>
   </header>
 
-  <!-- Shift action buttons live just below the header -->
-  <div id="shift-controls">
-    <button id="new-patrol-btn" aria-label="Start New Patrol">
-      🌊 New Patrol
-    </button>
-    <button id="report-btn" aria-label="Share End of Shift Report">
-      📋 End of Shift
-    </button>
-  </div>
+  <!-- Start screen: duty, date and crew. Shown once per patrol, or when editing crew -->
+  <form id="start-screen" novalidate hidden>
+    <fieldset class="start-group">
+      <legend>Duty</legend>
+      <div class="pills" role="radiogroup">
+        <label class="pill">
+          <input type="radio" name="duty" value="Patrol" checked />
+          <span>Patrol</span>
+        </label>
+        <label class="pill">
+          <input type="radio" name="duty" value="Training" />
+          <span>Training</span>
+        </label>
+        <label class="pill">
+          <input type="radio" name="duty" value="Other" />
+          <span>Other</span>
+        </label>
+      </div>
+      <input id="duty-other" type="text" placeholder="Describe duty, e.g. Search exercise"
+             autocapitalize="sentences" enterkeyhint="next" aria-label="Other duty" hidden />
+    </fieldset>
 
-  <main>
-    <section id="log-section">
-      <h2>Running Log</h2>
-      <div id="log-entries" aria-live="polite" aria-label="Running log entries">
-        <p id="empty-msg">No entries yet. Tap Log Entry to start recording.</p>
+    <fieldset class="start-group">
+      <legend>Date</legend>
+      <input id="patrol-date" type="date" aria-label="Patrol date" required />
+    </fieldset>
+
+    <fieldset class="start-group">
+      <legend>Crew on board</legend>
+      <div class="crew-row">
+        <span class="award award-s" aria-hidden="true">S</span>
+        <input id="crew-skipper" type="text" placeholder="Skipper (required)" aria-label="Skipper"
+               list="crew-names" autocomplete="off" autocapitalize="words" enterkeyhint="next" required />
+      </div>
+      <div class="crew-row">
+        <span class="award award-d" aria-hidden="true">D</span>
+        <input id="crew-driver" type="text" placeholder="Driver (required)" aria-label="Driver"
+               list="crew-names" autocomplete="off" autocapitalize="words" enterkeyhint="next" required />
+      </div>
+      <div id="crew-extras"></div>
+      <button id="add-crew-btn" class="ghost-btn" type="button">+ Add crew</button>
+      <p id="logged-off" hidden></p>
+      <datalist id="crew-names"></datalist>
+    </fieldset>
+
+    <p id="start-error" role="alert"></p>
+    <button id="start-btn" type="submit">Start Patrol</button>
+    <button id="start-cancel" class="ghost-btn" type="button" hidden>Cancel</button>
+  </form>
+
+  <div id="app" hidden>
+    <nav id="tabs" role="tablist">
+      <button role="tab" data-tab="log" aria-selected="true">📝 Log</button>
+      <button role="tab" data-tab="weather" aria-selected="false">🌊 Weather</button>
+      <button role="tab" data-tab="tools" aria-selected="false">🧭 Tools</button>
+      <button role="tab" data-tab="info" aria-selected="false">ℹ️ Info</button>
+    </nav>
+
+    <!-- ── Log tab ── -->
+    <div id="panel-log" class="panel" role="tabpanel">
+      <div id="shift-controls">
+        <button id="new-patrol-btn" aria-label="Start New Patrol">
+          🌊 New Patrol
+        </button>
+        <button id="report-btn" aria-label="Share End of Shift Report">
+          📋 End of Shift
+        </button>
+      </div>
+
+      <main>
+        <button id="boundary-bar" type="button" hidden></button>
+        <button id="shift-summary" type="button" aria-label="Edit duty and crew"></button>
+        <section id="log-section">
+          <h2>Running Log</h2>
+          <div id="log-entries" aria-live="polite" aria-label="Running log entries">
+            <p id="empty-msg">No entries yet. Tap Log Entry to start recording.</p>
+          </div>
+        </section>
+      </main>
+
+      <!-- Mic button lives at the bottom in the natural thumb zone -->
+      <footer>
+        <div id="live-box" hidden>
+          <div id="live-head"><span class="live-dot"></span> LIVE <span id="live-timer">0:00</span></div>
+          <p id="live-text">Listening…</p>
+        </div>
+        <p id="status-msg"></p>
+        <div id="footer-buttons">
+          <button id="mark-btn" aria-label="Mark current position in the log">📍<span>Mark</span></button>
+          <button id="dictate-btn" aria-label="Log Entry">
+            🎙️ Log Entry
+          </button>
+        </div>
+      </footer>
+    </div>
+
+    <!-- ── Weather tab ── -->
+    <section id="panel-weather" class="panel scroll-panel" role="tabpanel" hidden>
+      <div class="card" id="bom-card">
+        <h2>BOM Marine Forecast</h2>
+        <div id="bom-body"><p class="muted">Loading…</p></div>
+      </div>
+
+      <div class="card">
+        <h2>Conditions off Malabar <span id="wx-updated" class="muted small"></span></h2>
+        <div id="wx-now"><p class="muted">Loading forecast…</p></div>
+        <div id="wx-table-wrap"></div>
+        <p class="muted small">Model forecast (Open-Meteo, ECMWF/BOM models). Wind in knots, swell in metres and seconds. Directions are where it comes <em>from</em>.</p>
+      </div>
+
+      <div class="card" id="ww-card" hidden>
+        <h2>Tides &amp; Observations</h2>
+        <div id="ww-body"></div>
+        <p class="muted small">Data: WillyWeather</p>
+      </div>
+
+      <div class="card">
+        <h2>Live Map</h2>
+        <div class="pills" id="map-pills">
+          <label class="pill"><input type="radio" name="map" value="wind" checked /><span>Wind</span></label>
+          <label class="pill"><input type="radio" name="map" value="waves" /><span>Waves</span></label>
+          <label class="pill"><input type="radio" name="map" value="radar" /><span>Radar</span></label>
+          <label class="pill"><input type="radio" name="map" value="satellite" /><span>Satellite</span></label>
+        </div>
+        <div id="map-wrap"></div>
+        <p class="muted small">Map: Windy.com</p>
+      </div>
+
+      <div class="card">
+        <h2>BOM Links</h2>
+        <ul class="link-list">
+          <li><a href="https://www.bom.gov.au/nsw/forecasts/sydneywaters.shtml" target="_blank" rel="noopener">Sydney coastal &amp; local waters forecasts</a></li>
+          <li><a href="https://www.bom.gov.au/nsw/warnings/" target="_blank" rel="noopener">NSW warnings (marine wind, hazardous surf)</a></li>
+          <li><a href="https://www.bom.gov.au/products/IDR713.loop.shtml" target="_blank" rel="noopener">Sydney radar loop (Terrey Hills)</a></li>
+          <li><a href="https://www.bom.gov.au/australia/satellite/" target="_blank" rel="noopener">Satellite viewer</a></li>
+        </ul>
       </div>
     </section>
-  </main>
 
-  <!-- Mic button lives at the bottom in the natural thumb zone -->
-  <footer>
-    <p id="status-msg"></p>
-    <button id="dictate-btn" aria-label="Log Entry">
-      🎙️ Log Entry
-    </button>
-  </footer>
+    <!-- ── Tools tab ── -->
+    <section id="panel-tools" class="panel scroll-panel" role="tabpanel" hidden>
+      <div class="card">
+        <h2>2 NM Boundary</h2>
+        <button id="boundary-toggle" class="tool-btn" type="button" aria-pressed="false">🛟 Boundary alarm: OFF</button>
+        <p id="boundary-readout" class="result">Alarm off.</p>
+        <svg id="boundary-map" role="img" aria-label="Map of the coast with the 2 nautical mile limit"></svg>
+        <p class="muted small">Measured from the nearest land, island, rock platform or reef (OpenStreetMap). Warns 500 m before the limit and again beyond it. Works while the app is open on screen. An aid only — the plotter is the authority.</p>
+      </div>
 
+      <div class="card">
+        <h2>Speed · Distance · Time</h2>
+        <p class="muted small">Fill in any two — the third is calculated.</p>
+        <div class="calc-grid">
+          <label>Speed
+            <span class="unit-input"><input id="sdt-speed" type="number" inputmode="decimal" step="any" min="0" />
+              <select id="sdt-speed-unit" aria-label="Speed unit"><option value="kn">kn</option><option value="kmh">km/h</option></select></span>
+          </label>
+          <label>Distance
+            <span class="unit-input"><input id="sdt-dist" type="number" inputmode="decimal" step="any" min="0" />
+              <select id="sdt-dist-unit" aria-label="Distance unit"><option value="nm">NM</option><option value="km">km</option></select></span>
+          </label>
+          <label>Time
+            <span class="time-input">
+              <input id="sdt-hrs" type="number" inputmode="numeric" min="0" aria-label="Hours" /><span>h</span>
+              <input id="sdt-min" type="number" inputmode="decimal" min="0" step="any" aria-label="Minutes" /><span>min</span>
+            </span>
+          </label>
+        </div>
+        <p id="sdt-result" class="result" aria-live="polite"></p>
+        <button id="sdt-clear" class="ghost-btn dark" type="button">Clear</button>
+      </div>
+
+      <div class="card">
+        <h2>Position</h2>
+        <p id="pos-now" class="result">Tap “Get GPS” for current position.</p>
+        <button id="pos-get" class="tool-btn" type="button">📍 Get GPS</button>
+        <h3>Distance &amp; bearing to</h3>
+        <select id="pos-target" aria-label="Destination"></select>
+        <p id="pos-target-result" class="result" aria-live="polite"></p>
+        <h3>Convert a position</h3>
+        <input id="pos-convert" type="text" placeholder="e.g. 33 58.12 S 151 15.45 E or -33.9687, 151.2575" autocapitalize="off" />
+        <p id="pos-convert-result" class="result" aria-live="polite"></p>
+      </div>
+
+      <div class="card">
+        <h2>Fuel &amp; Range</h2>
+        <div class="calc-grid">
+          <label>Fuel on board (L)<input id="fuel-onboard" type="number" inputmode="decimal" min="0" step="any" placeholder="450" /></label>
+          <label>Burn rate (L/h)<input id="fuel-burn" type="number" inputmode="decimal" min="0" step="any" placeholder="from skipper" /></label>
+          <label>Cruise speed (kn)<input id="fuel-speed" type="number" inputmode="decimal" min="0" step="any" /></label>
+        </div>
+        <p id="fuel-result" class="result" aria-live="polite"></p>
+        <p class="muted small">Uses the rule of thirds: ⅓ out, ⅓ back, ⅓ reserve. Tank capacity 450 L.</p>
+      </div>
+    </section>
+
+    <!-- ── Info tab ── -->
+    <section id="panel-info" class="panel scroll-panel" role="tabpanel" hidden>
+      <p class="draft-note">Draft reference — confirm against current SLSA SOPs and the skipper before relying on it.</p>
+
+      <details class="card" open>
+        <summary>Surf Rescue 30 — quick facts</summary>
+        <dl class="facts">
+          <dt>Callsign</dt><dd>Surf Rescue 30</dd>
+          <dt>Base</dt><dd>Malabar (Randwick LGA)</dd>
+          <dt>Coverage</dt><dd>South Head to Botany Bay, up to 2 NM seaward</dd>
+          <dt>Operations</dt><dd>Sat, Sun &amp; public holidays, September–April. Minimum 3 crew.</dd>
+          <dt>Vessel</dt><dd>7.6 m Noosa Cat 2400, 2 × 150 HP outboards, Yamaha Helm Master autopilot</dd>
+          <dt>Survey</dt><dd>2C AMSA Certificate of Survey for 6 persons</dd>
+          <dt>Fuel</dt><dd>450 L</dd>
+          <dt>Tasking</dt><dd><a href="tel:137873">13SURF (13 78 73)</a> — 24 hours. SLSNSW MAC Liaison Officer (as available).</dd>
+          <dt>Comms</dt><dd>VHF, SLSA UHF, mobile, portable radios</dd>
+          <dt>Nav</dt><dd>Furuno suite: Class-B AIS, radar, FLIR, dual plotter, SAR search patterns</dd>
+          <dt>Safety</dt><dd>EPIRB, PLBs, emergency strobes, L150 inflatable lifejackets</dd>
+          <dt>Equipment</dt><dd>Tow post &amp; 100 m tow line · salvage pump &amp; reel · first aid, oxygen, defibrillator, stretcher, body retrieval kit · rescue tubes &amp; PPE for rock/water access · search lights (fixed &amp; portable)</dd>
+          <dt>Coordinator</dt><dd>ORB Coordinator — <a href="mailto:orbcoordinator@sls.sydney">orbcoordinator@sls.sydney</a></dd>
+        </dl>
+      </details>
+
+      <details class="card">
+        <summary>Distress, urgency &amp; safety calls</summary>
+        <h3>MAYDAY — grave and imminent danger</h3>
+        <ol class="call">
+          <li>MAYDAY, MAYDAY, MAYDAY</li>
+          <li>This is <em>[vessel name]</em>, <em>[vessel name]</em>, <em>[vessel name]</em></li>
+          <li>MAYDAY <em>[vessel name]</em></li>
+          <li>My position is <em>[lat/long, or range &amp; bearing from a landmark]</em></li>
+          <li>Nature of distress <em>[sinking, fire, person overboard…]</em></li>
+          <li>Assistance required</li>
+          <li>Number of persons on board</li>
+          <li>Any other information <em>[vessel description, intentions]</em></li>
+          <li>OVER</li>
+        </ol>
+        <h3>PAN-PAN — urgent, not life-threatening</h3>
+        <p>PAN-PAN ×3, ALL STATIONS ×3, this is <em>[vessel]</em> ×3, position, nature of urgency, assistance required, persons on board, OVER.</p>
+        <h3>SÉCURITÉ — navigation or weather safety</h3>
+        <p>SÉCURITÉ ×3, ALL STATIONS ×3, this is <em>[vessel]</em> ×3, safety message, OUT.</p>
+        <h3>Channels</h3>
+        <p>VHF Ch 16 — distress, urgency, safety &amp; calling. Confirm local working channels with the skipper.</p>
+      </details>
+
+      <details class="card">
+        <summary>Phonetic alphabet &amp; prowords</summary>
+        <div class="phonetic">
+          <span>A Alfa</span><span>B Bravo</span><span>C Charlie</span><span>D Delta</span><span>E Echo</span>
+          <span>F Foxtrot</span><span>G Golf</span><span>H Hotel</span><span>I India</span><span>J Juliett</span>
+          <span>K Kilo</span><span>L Lima</span><span>M Mike</span><span>N November</span><span>O Oscar</span>
+          <span>P Papa</span><span>Q Quebec</span><span>R Romeo</span><span>S Sierra</span><span>T Tango</span>
+          <span>U Uniform</span><span>V Victor</span><span>W Whiskey</span><span>X X-ray</span><span>Y Yankee</span>
+          <span>Z Zulu</span><span>3 Tree</span><span>5 Fife</span><span>9 Niner</span><span>0 Zero</span>
+        </div>
+        <dl class="facts">
+          <dt>OVER</dt><dd>My transmission is finished, I expect a reply</dd>
+          <dt>OUT</dt><dd>Conversation finished, no reply expected</dd>
+          <dt>ROGER</dt><dd>Message received</dd>
+          <dt>WILCO</dt><dd>Received, understood, will comply</dd>
+          <dt>SAY AGAIN</dt><dd>Repeat your last message</dd>
+          <dt>I SPELL</dt><dd>I will spell the next word phonetically</dd>
+          <dt>WAIT</dt><dd>Pause for a few seconds</dd>
+          <dt>CORRECTION</dt><dd>An error was made; the correct version follows</dd>
+          <dt>SEELONCE MAYDAY</dt><dd>Radio silence imposed — distress in progress</dd>
+        </dl>
+      </details>
+
+      <details class="card">
+        <summary>Beaufort scale</summary>
+        <table class="data-table">
+          <thead><tr><th>F</th><th>Knots</th><th>Description</th><th>Sea</th></tr></thead>
+          <tbody>
+            <tr><td>0</td><td>&lt;1</td><td>Calm</td><td>Mirror-like</td></tr>
+            <tr><td>1</td><td>1–3</td><td>Light air</td><td>Ripples</td></tr>
+            <tr><td>2</td><td>4–6</td><td>Light breeze</td><td>Small wavelets</td></tr>
+            <tr><td>3</td><td>7–10</td><td>Gentle breeze</td><td>Scattered whitecaps</td></tr>
+            <tr><td>4</td><td>11–16</td><td>Moderate breeze</td><td>Frequent whitecaps</td></tr>
+            <tr><td>5</td><td>17–21</td><td>Fresh breeze</td><td>Moderate waves, many whitecaps</td></tr>
+            <tr><td>6</td><td>22–27</td><td>Strong breeze</td><td>Large waves, spray (Strong Wind Warning from 26 kn)</td></tr>
+            <tr><td>7</td><td>28–33</td><td>Near gale</td><td>Sea heaps up, foam streaks</td></tr>
+            <tr><td>8</td><td>34–40</td><td>Gale</td><td>Long high waves, blown foam (Gale Warning)</td></tr>
+          </tbody>
+        </table>
+      </details>
+
+      <details class="card">
+        <summary>Patrol log form — condition categories</summary>
+        <dl class="facts">
+          <dt>Weather</dt><dd>Fine · Overcast · Raining</dd>
+          <dt>Sea</dt><dd>Calm · Chop · Moderate · Rough</dd>
+          <dt>Swell (m)</dt><dd>0–0.5 · 0.5–1.5 · 1.5–2.5 · 2.5+</dd>
+          <dt>Wind</dt><dd>Nil · Slight · Moderate · Strong</dd>
+          <dt>Statistics</dt><dd>Rescues · Preventions · Shark sightings · Searches/Lost · Call outs/13SURF · First aids</dd>
+        </dl>
+      </details>
+    </section>
+  </div>
+
+  <dialog id="edit-dialog">
+    <form method="dialog" id="edit-form">
+      <h2 id="edit-title">Edit entry</h2>
+      <textarea id="edit-text" rows="5" aria-labelledby="edit-title"></textarea>
+      <div class="dialog-buttons">
+        <button value="delete" id="edit-delete" type="submit">🗑 Delete</button>
+        <button value="cancel" type="submit">Cancel</button>
+        <button value="save" id="edit-save" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="config.js"></script>
+  <script src="places.js"></script>
+  <script src="vocab.js"></script>
+  <script src="geo.js"></script>
+  <script src="coast.js"></script>
   <script src="script.js"></script>
+  <script src="geofence.js"></script>
+  <script src="weather.js"></script>
+  <script src="tools.js"></script>
 </body>
 </html>
