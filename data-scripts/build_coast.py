@@ -86,7 +86,13 @@ for g in coast + outcrops:
 print('runtime features', len(features), 'points', sum(len(f) for f in features))
 
 # Main coast for the map, simplified more
-map_coast = [[[round(v, 5) for v in UP(x, y)] for x, y in l.simplify(12).coords] for l in lines if l.length > 300]
+grid_box = box(*P(-34.20, 151.03), *P(-33.775, 151.37))
+map_coast = []
+for l in lines:
+    gi = l.intersection(grid_box)
+    for part in (gi.geoms if hasattr(gi, 'geoms') else [gi]):
+        if part.geom_type == 'LineString' and part.length > 300:
+            map_coast.append([[round(v, 5) for v in UP(x, y)] for x, y in part.simplify(12).coords])
 islands = [to_ll(g) for g in outcrops if g.geom_type != 'Point' and g.area > 1500] if True else []
 
 # ── Navigable-water grid for the route calculator ─────────────────────
@@ -155,15 +161,110 @@ while q:
         rr, cc = r + dr, c + dc
         if 0 <= rr < rows and 0 <= cc < cols and free[rr, cc] and not sea[rr, cc]:
             sea[rr, cc] = True; q.append((rr, cc))
+# Cost class per water cell — there's no depth data in OSM, so keep routes
+# mid-channel by making water near the shore dearer, and prefer charted
+# fairways / recommended tracks where they're mapped.
+#   1 = ≥200 m from land, 2 = 100–200 m, 3 = <100 m, 4 = charted channel
+coast_pts = []
+for g in coast + outcrops:
+    for part in (g.geoms if hasattr(g, 'geoms') else [g]):
+        if part.geom_type == 'Point':
+            coast_pts.append((part.x, part.y)); continue
+        ring = part.exterior if part.geom_type == 'Polygon' else part
+        dens = ring.segmentize(20)
+        coast_pts.extend(dens.coords)
+land_tree = cKDTree(np.array(coast_pts))
+dist_land, _ = land_tree.query(np.column_stack([XX.ravel(), YY.ravel()]))
+dist_land = dist_land.reshape(sea.shape)
+cls = np.where(dist_land >= 200, 1, np.where(dist_land >= 100, 2, 3)).astype(np.uint8)
+channel = np.zeros_like(sea)
+try:
+    marks = json.load(open('seamarks.json'))['elements']
+except FileNotFoundError:
+    marks = []
+chan_lines = []
+for e in marks:
+    t = e.get('tags', {})
+    if e['type'] == 'way' and t.get('seamark:type') in ('fairway', 'recommended_track', 'navigation_line', 'dredged_area') and 'geometry' in e:
+        chan_lines.append(LineString([P(g['lat'], g['lon']) for g in e['geometry']]))
+    elif e['type'] == 'relation':
+        for m in e.get('members', []):
+            if 'geometry' in m:
+                chan_lines.append(LineString([P(g['lat'], g['lon']) for g in m['geometry']]))
+if chan_lines:
+    chan = unary_union([l if t != 'x' else l for l, t in zip(chan_lines, ['l'] * len(chan_lines))])
+    # Fairway/dredged polygons are drawn as closed ways: fill them; tracks get a 40 m corridor
+    filled = []
+    for l in chan_lines:
+        c = list(l.coords)
+        if len(c) >= 4 and c[0] == c[-1]:
+            filled.append(Polygon(c).buffer(0))
+        else:
+            filled.append(l.buffer(40))
+    chan_area = unary_union(filled)
+    channel = shapely.contains_xy(chan_area, XX, YY)
+cls = np.where(channel, 4, cls)
+grid = np.where(sea, cls, 0).astype(np.uint8)
+print('channel cells', int((grid == 4).sum()), 'from', len(chan_lines), 'charted lines')
 def rle(row):
-    runs, cur, n = [], False, 0
+    # "value×count" runs, e.g. "0x12,1x40,3x2"
+    runs, cur, n = [], int(row[0]), 0
     for v in row:
-        if bool(v) == cur: n += 1
-        else: runs.append(n); cur = not cur; n = 1
-    runs.append(n)
-    return ','.join(map(str, runs))
-nav_rows = [rle(sea[r]) for r in range(rows)]
+        v = int(v)
+        if v == cur: n += 1
+        else: runs.append(f'{cur}x{n}'); cur = v; n = 1
+    runs.append(f'{cur}x{n}')
+    return ','.join(runs)
+nav_rows = [rle(grid[r]) for r in range(rows)]
 print('nav grid', rows, 'x', cols, 'water cells', int(sea.sum()))
+
+# ── Route places: named beaches, bays, points… on navigable water ──────
+# Area: Figure Eight Pools → Manly, Sydney Harbour eastern bays, Botany Bay up
+# the Georges River to Tom Uglys Bridge, Port Hacking to Grays Point.
+REGIONS = ['Manly & North Head', 'Harbour (eastern bays)', 'Eastern beaches', 'Botany Bay & Georges River',
+           'Kurnell & Cronulla', 'Port Hacking', 'Royal National Park']
+def region_of(lat, lon):
+    if -33.875 < lat < -33.79 and 151.225 <= lon < 151.287 and not (lon > 151.2855 and lat > -33.806):
+        return 'Harbour (eastern bays)'
+    if lat >= -33.83 and lon >= 151.28:
+        return 'Manly & North Head'
+    if -34.005 < lat <= -33.83 and lon >= 151.244:
+        return 'Eastern beaches'
+    if -34.03 < lat <= -33.93 and 151.105 <= lon < 151.244 and (lat > -34.012 or lon < 151.19):
+        return 'Botany Bay & Georges River'
+    if -34.075 < lat <= -33.995 and lon >= 151.145:
+        return 'Kurnell & Cronulla'
+    if -34.105 < lat <= -34.045 and 151.075 <= lon < 151.17:
+        return 'Port Hacking'
+    if -34.195 < lat <= -34.075 and lon >= 151.03:
+        return 'Royal National Park'
+    return None
+KIND_RANK = {'beach': 0, 'bay': 1, 'cape': 2, 'peninsula': 3, 'island': 4, 'islet': 4, 'reef': 5, 'shoal': 5}
+route_places = []
+try:
+    names = json.load(open('names.json'))['elements']
+except FileNotFoundError:
+    names = []
+water_idx = np.argwhere(sea)  # route places must be near navigable water
+water_tree = cKDTree(np.column_stack([x0 + (water_idx[:, 1] + 0.5) * CELL_M, y0 + (water_idx[:, 0] + 0.5) * CELL_M])) if len(water_idx) else None
+cands = []
+for e in names:
+    t = e.get('tags', {})
+    name = t.get('name')
+    lat = e.get('lat', e.get('center', {}).get('lat')); lon = e.get('lon', e.get('center', {}).get('lon'))
+    if not name or lat is None: continue
+    reg = region_of(lat, lon)
+    if not reg: continue
+    if water_tree is not None and water_tree.query(P(lat, lon))[0] > 600: continue
+    kind = t.get('natural') or t.get('place') or t.get('man_made') or t.get('leisure') or t.get('amenity') or ''
+    cands.append((KIND_RANK.get(kind, 6), name.strip(), reg, round(lat, 5), round(lon, 5)))
+cands.sort()
+for rank, name, reg, lat, lon in cands:
+    if any(p['name'].lower() == name.lower() and abs(p['lat'] - lat) < 0.01 and abs(p['lon'] - lon) < 0.012 for p in route_places):
+        continue
+    route_places.append({'name': name, 'region': reg, 'lat': lat, 'lon': lon})
+route_places.sort(key=lambda p: (REGIONS.index(p['region']), -p['lat'] if p['region'] != 'Botany Bay & Georges River' else p['lon']))
+print('route places', len(route_places), {r: sum(1 for p in route_places if p['region'] == r) for r in REGIONS})
 
 js = f"""/* ── Surf Patrol Log – coast.js (generated) ──
    Coastline, islands, rock platforms and reefs from South Head to Cape Baily,
@@ -181,7 +282,10 @@ const COAST = {{
   mapOutcrops: {json.dumps(islands, separators=(',', ':'))},
   limitLines: {json.dumps(limit_lines, separators=(',', ':'))},
   warnLines: {json.dumps(warn_lines, separators=(',', ':'))},
-  // Navigable water for routing: rows south→north, run lengths alternating blocked/water
+  // Named places for the job route calculator, grouped by area
+  routeRegions: {json.dumps(REGIONS)},
+  routePlaces: {json.dumps(route_places, separators=(',', ':'))},
+  // Navigable water for routing: rows south→north, runs of value×count (0 land, 1 open water, 2 within 200 m of land, 3 within 100 m, 4 charted channel)
   nav: {{ origin: {json.dumps([round(UP(x0, y0)[0], 6), round(UP(x0, y0)[1], 6)])}, cellM: {CELL_M}, rows: {rows}, cols: {cols},
          proj: {{ lat0: {LAT0}, lon0: {LON0}, kx: {KX:.4f}, ky: {KY} }}, data: {json.dumps(nav_rows, separators=(',', ':'))} }}
 }};

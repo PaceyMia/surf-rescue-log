@@ -47,6 +47,16 @@ query "$OUT/names.json" "[out:json][timeout:240];
 );
 out center tags;"
 
+# Nautical chart data (OpenSeaMap tags): fairways, recommended tracks and
+# lateral marks, used to keep routes in the channel
+query "$OUT/seamarks.json" "[out:json][timeout:240];
+(
+  way[\"seamark:type\"~\"^(fairway|recommended_track|navigation_line|dredged_area)$\"]($BBOX);
+  relation[\"seamark:type\"~\"^(fairway|dredged_area)$\"]($BBOX);
+  node[\"seamark:type\"~\"^(buoy_lateral|beacon_lateral|buoy_safe_water|beacon_cardinal|buoy_cardinal)$\"]($BBOX);
+);
+out geom;"
+
 # Shape features into the format build_coast.py expects
 python3 - "$OUT" <<'PY'
 import json, sys
@@ -60,6 +70,6 @@ for e in raw["elements"]:
     elif e["type"] == "node":
         points.append({"id": str(e["id"]), "lat": e["lat"], "lon": e["lon"], "tags": tags})
 json.dump({"ways": ways, "points": points}, open(f"{out}/features.json", "w"))
-print("ways", len(ways), "points", len(points), "names", len(json.load(open(f"{out}/names.json"))["elements"]))
+print("ways", len(ways), "points", len(points), "names", len(json.load(open(f"{out}/names.json"))["elements"]), "seamarks", len(json.load(open(f"{out}/seamarks.json"))["elements"]))
 PY
 rm "$OUT/raw-features.json"

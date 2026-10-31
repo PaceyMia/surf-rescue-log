@@ -27,6 +27,6 @@ jobs:
           git init -q -b osm-data
           git config user.name "osm-data bot"
           git config user.email "actions@users.noreply.github.com"
-          git add features.json names.json
+          git add features.json names.json seamarks.json
           git commit -q -m "OSM data $(date -u +%FT%TZ) — © OpenStreetMap contributors, ODbL"
           git push -q --force "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" osm-data
