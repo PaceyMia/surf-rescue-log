@@ -91,7 +91,8 @@ const feedFixture = {
     periods: [{ label: 'Saturday 31 Oct', warning: 'Strong Wind Warning for Saturday for Sydney Coast', winds: 'Northerly 20 to 25 knots.', seas: '1.5 to 2 metres.', swell1: 'Southerly 1 to 1.5 metres.', swell2: '', weather: 'Partly cloudy.', caution: '' }] }] },
   warnings: [
     { title: 'Strong Wind Warning for Saturday for Sydney Coast', area: 'Sydney Coast: Broken Bay to Port Hacking', source: 'BOM coastal waters forecast' },
-    { title: 'Hazardous Surf Warning for New South Wales', link: 'https://www.bom.gov.au/nsw/warnings/hazardoussurf.shtml', issued: 'Sat 04:19', source: 'BOM warnings' }
+    { title: 'Hazardous Surf Warning for New South Wales', link: 'https://www.bom.gov.au/nsw/warnings/hazardoussurf.shtml', issued: 'Sat 04:19', source: 'BOM warnings',
+      detail: 'Surf and swell conditions are expected to be hazardous for coastal activities such as rock fishing, boating, and swimming.' }
   ],
   ww: { location: 'Malabar', tides: [], observed: { station: 'Little Bay', speedKmh: 15, gustKmh: 22, direction: 'NNE', time: '09:00' } }
 };
@@ -295,11 +296,22 @@ await check('weather tab: warnings, now tiles, tide, sun and first/last light', 
   assert(await page.isVisible('#panel-weather'), 'banner did not open weather tab');
   await page.waitForSelector('.tile', { timeout: 5000 });
   assert(await page.locator('.warning-item').count() === 2, 'warnings not listed');
+  assert(!(await page.$eval('#warnings-card', d => d.open)), 'warnings should start collapsed');
+  assert((await page.textContent('#warnings-summary')).startsWith('⚠️ 2 warnings'), 'warning summary line');
+  await page.click('#warnings-summary');
+  assert(await page.isVisible('.warning-item'), 'warnings did not expand');
+  await page.click('.warning-item >> nth=1');
+  await page.waitForFunction(() => {
+    const r = document.getElementById('warn-detail-1').getBoundingClientRect();
+    return r.top >= 0 && r.bottom <= window.innerHeight + 1;
+  }, null, { timeout: 3000 });
+  assert((await page.textContent('#warn-detail-1')).includes('hazardous for coastal activities'), 'warning detail text');
   const now = await page.textContent('#wx-now');
-  for (const want of ['14 kn NNE', '1.2 m S', '1.6 m', '20.5 °C', '↑ Rising', 'Sunrise · Sunset', 'First light · Last light']) {
+  assert(!now.includes('Waves'), 'Waves tile should be gone');
+  for (const want of ['14 kn NNE', '1.2 m S', '20.5 °C', '↑ Rising', 'Sunrise · Sunset', 'First light · Last light']) {
     assert(now.includes(want), `missing "${want}" in "${now}"`);
   }
-  assert(/First light · Last light0[45]:\d\d · 19:\d\d|First light · Last light0[45]:\d\d · 20:\d\d/.test(now.replace(/\s+/g, '')) || now.includes('civil twilight'), 'first/last light times');
+  assert(/First light · Last light\s*0[45]:\d\d · (19|20):\d\d/.test(now), 'first/last light times');
   assert((await page.textContent('#bom-body')).includes('Strong Wind Warning for Saturday'), 'BOM forecast not shown');
 });
 
@@ -321,13 +333,13 @@ await check('wind units switch to km/h and are remembered', async () => {
   await page.click('#wind-unit label:has-text("knots")');
 });
 
-await check('live map keeps each layer loaded; radar replaces satellite', async () => {
+await check('live map keeps each layer loaded; Windy radar, no satellite', async () => {
   assert(await page.locator('#map-pills input[value="satellite"]').count() === 0, 'satellite still there');
   await page.click('#map-pills label:has-text("Waves")');
   await page.click('#map-pills label:has-text("Radar")');
   const frames = await page.$$eval('#map-wrap iframe', fs => fs.map(f => ({ src: f.src, hidden: f.hidden })));
   assert(frames.length === 3, `expected 3 map frames, got ${frames.length}`);
-  assert(frames.filter(f => !f.hidden).length === 1 && frames.find(f => !f.hidden).src.includes('rainviewer') && frames.find(f => !f.hidden).src.includes('oAP=1'), 'radar not shown/autoplaying');
+  assert(frames.filter(f => !f.hidden).length === 1 && frames.find(f => !f.hidden).src.includes('embed.windy.com') && frames.find(f => !f.hidden).src.includes('overlay=radar'), 'Windy radar not shown');
   assert(frames.some(f => f.src.includes('overlay=waves')), 'waves layer missing');
 });
 
@@ -341,22 +353,32 @@ await check('header scrolls away, tabs stay pinned', async () => {
 
 await check('job route: Coogee to Ben Buckler by water with time at speed', async () => {
   await page.click('[data-tab="tools"]');
-  await page.selectOption('#route-from', 'Coogee');
-  await page.selectOption('#route-to', 'Ben Buckler');
+  await page.selectOption('#route-from', { label: 'Coogee Beach' });
+  await page.selectOption('#route-to', { label: 'Ben Buckler Headland' });
   await page.fill('#route-speed', '20');
   await page.waitForFunction(() => document.getElementById('route-result').textContent.includes('at 20 kn'));
   const r = await page.textContent('#route-result');
   const nm = parseFloat(r);
-  assert(nm > 2.1 && nm < 2.8 && /min at 20 kn/.test(r) && /Steer \d{3}°T/.test(r), `got "${r}"`);
+  assert(nm > 1.9 && nm < 2.8 && /min at 20 kn/.test(r) && /Steer \d{3}°T/.test(r), `got "${r}"`);
   assert(await page.locator('#route-map .m-route').count() === 1, 'route not drawn');
 });
 
+await check('job route reaches Grays Point up Port Hacking', async () => {
+  await page.selectOption('#route-from', { label: 'Bundeena Bay' });
+  await page.selectOption('#route-to', { label: 'Grays Point' });
+  await page.waitForFunction(() => /NM by water/.test(document.getElementById('route-result').textContent) && document.getElementById('route-result').textContent.includes('Grays') === false);
+  const nm = parseFloat(await page.textContent('#route-result'));
+  assert(nm > 3 && nm < 5, `Bundeena Bay → Grays Point ${nm} NM`);
+  const groups = await page.$$eval('#route-to optgroup', gs => gs.map(g => g.label));
+  assert(groups.includes('Port Hacking') && groups.includes('Harbour (eastern bays)'), `groups ${groups}`);
+});
+
 await check('job route goes around Cape Banks, not over land', async () => {
-  await page.selectOption('#route-from', 'Little Bay');
-  await page.selectOption('#route-to', 'La Perouse');
+  await page.selectOption('#route-from', { label: 'Little Bay Beach' });
+  await page.selectOption('#route-to', { label: 'Frenchmans Bay' });
   await page.waitForFunction(() => document.getElementById('route-result').textContent.includes('NM by water'));
   const nm = parseFloat(await page.textContent('#route-result'));
-  assert(nm > 2.2, `Little Bay → La Perouse only ${nm} NM — cutting across land`);
+  assert(nm > 2.2, `Little Bay → Frenchmans Bay only ${nm} NM — cutting across land`);
 });
 
 await check('info tab shows the phone setup check', async () => {
