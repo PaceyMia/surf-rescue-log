@@ -5,20 +5,18 @@
 // route for automated access) into <bom-dir>; this script only parses them.
 //   node data-scripts/fetch_weather.mjs <out-dir> <bom-dir>
 // Env: WW_API_KEY (optional), WW_LOCATION_ID (optional)
-import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const BOM_PRODUCTS = [
   { file: 'IDN11001.xml', areas: ['NSW_MW004', 'NSW_MW003'] }, // Sydney, Illawarra coast
   { file: 'IDN11013.xml', areas: ['NSW_MW009'] }               // Sydney Enclosed Waters
 ];
-const WARNINGS_RSS = 'IDZ00054.warnings_nsw.xml';
 const bomDir = process.argv[3] || 'bom';
 // Warnings that matter on the water off Sydney. Severe weather/thunderstorm
-// warnings cover the whole state, so only keep those that mention our area.
+// warnings can be anywhere in the state, so only keep those for our area.
 const MARINE = /marine wind|hazardous surf|gale|storm force|hurricane|tsunami|coastal hazard|damaging surf/i;
-const LOCAL_SEVERE = /(severe (thunderstorm|weather)).*(sydney|metropolitan|illawarra|coast)/i;
-const relevant = title => MARINE.test(title) || LOCAL_SEVERE.test(title);
+const LOCAL_SEVERE = /severe (thunderstorm|weather).*(sydney|metropolitan|illawarra)/i;
 
 const decode = s => s.replace(/\s+/g, ' ').replace(/<!\[CDATA\[|\]\]>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
   .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#39;/g, "'").trim();
@@ -67,17 +65,35 @@ async function getBom() {
   return { issued, areas, coastWarnings };
 }
 
-// ── BOM NSW warnings feed ──────────────────────────────────────────
+// ── BOM warning products (IDN2xxxx, downloaded by the workflow) ──────
+// Each file only exists while its warning is current. Keep warnings that
+// cover our waters, and say which of our areas they apply to.
+const OUR_AREAS = /sydney coast|sydney enclosed|sydney closed|botany bay|illawarra coast|sydney metropolitan|sydney/i;
 async function getWarnings() {
-  const xml = await text(WARNINGS_RSS);
+  const dir = join(bomDir, 'warnings');
+  let files = [];
+  try { files = readdirSync(dir).filter(f => /^IDN2\d{4}\.xml$/.test(f)); } catch { return []; }
   const items = [];
-  for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
-    const get = tag => decode((m[1].match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`)) || [])[1] || '');
-    const title = get('title').replace(/^\d+\/\d+:\d+ \w+\s*/, ''); // drop "31/11:22 EDT "
-    if (!title || !relevant(title)) continue;
-    const link = get('link').replace(/^http:\/\/reg\./, 'https://www.');
-    const pub = get('pubDate');
-    items.push({ title, link, issued: pub ? sydney(pub, { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '', source: 'BOM warnings' });
+  for (const f of files) {
+    const xml = readFileSync(join(dir, f), 'utf8');
+    const texts = type => [...xml.matchAll(new RegExp(`<text type="${type}">([\\s\\S]*?)</text>`, 'g'))].map(m => decode(m[1].replace(/<[^>]+>/g, ' ')));
+    const expiry = (xml.match(/<expiry-time>([^<]+)</) || [])[1];
+    if (expiry && new Date(expiry) < new Date()) continue;
+    const title = texts('warning_title')[0] || texts('warning_phenomena_summary')[0] || '';
+    if (!title) continue;
+    const areas = [...texts('warning_areas'), ...texts('warning_area_summary')].join(', ');
+    if (!(MARINE.test(title) || LOCAL_SEVERE.test(`${title} ${areas}`))) continue;
+    if (areas && !OUR_AREAS.test(areas)) continue; // e.g. a surf warning for the North Coast only
+    const ours = areas.split(/,| and /).map(a => a.trim()).filter(a => OUR_AREAS.test(a));
+    const issued = (xml.match(/<issue-time-utc>([^<]+)</) || [])[1];
+    const id = f.replace('.xml', '');
+    items.push({
+      title,
+      area: ours.length ? ours.join(', ') : '',
+      issued: issued ? sydney(issued, { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '',
+      link: `https://www.bom.gov.au/products/${id}.shtml`,
+      source: 'BOM warnings'
+    });
   }
   return items;
 }
