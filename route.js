@@ -163,7 +163,10 @@
       metres += m;
       legs.push({ nm: m / NM, brg: bearingDeg(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]) });
     }
-    return { pts, legs, nm: metres / NM, straightNm: distanceNm(from.lat, from.lon, to.lat, to.lon) };
+    // Straight line between the same water points the route uses (a place's map
+    // point can be on land, e.g. a bridge or the middle of a beach)
+    const [sa, sb] = [pts[0], pts[pts.length - 1]];
+    return { pts, legs, nm: metres / NM, straightNm: distanceNm(sa[0], sa[1], sb[0], sb[1]) };
   }
 
   // ── UI ────────────────────────────────────────────────────────────

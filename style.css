@@ -1010,8 +1010,6 @@ details.card:not([open]) summary {
 .warning-meta { display: block; font-size: 0.75rem; font-weight: 600; opacity: 0.9; }
 .all-clear { color: #0B6B3A; font-weight: 800; }
 
-.tile.tide-rising  { border-left: 5px solid #0B6B3A; }
-.tile.tide-falling { border-left: 5px solid #C77700; }
 
 .explain { margin-top: 0.3rem; font-size: 0.85rem; }
 .explain summary { cursor: pointer; font-weight: 800; color: #0047A0; min-height: 32px; }
@@ -1114,3 +1112,47 @@ details.card:not([open]) summary {
   padding: 0 0.25rem;
   font-size: 0.7rem;
 }
+
+/* Wind units: segmented control — the chosen option is filled yellow with a tick */
+.segmented {
+  display: inline-flex;
+  border: 2px solid var(--yellow);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.segmented label { position: relative; }
+.segmented input { position: absolute; opacity: 0; inset: 0; }
+.segmented span {
+  display: block;
+  min-height: 40px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #C8D8EE;
+  cursor: pointer;
+}
+.segmented input:checked + span { background-color: var(--yellow); color: var(--navy); }
+.segmented input:checked + span::before { content: '✓ '; }
+.segmented input:focus-visible + span { outline: 3px solid var(--white); outline-offset: -3px; }
+
+/* Warnings collapse to one line */
+#warnings-card summary { border-bottom: none; margin-bottom: 0; padding-bottom: 0; text-transform: none; letter-spacing: 0; font-size: 0.95rem; }
+#warnings-card[open] summary { border-bottom: 2px solid var(--navy); margin-bottom: 0.45rem; padding-bottom: 0.25rem; }
+#warnings-card.has-warnings { background-color: #FFE3DC; }
+#warnings-card.has-warnings summary { color: #8A1500; }
+
+/* Warning list items are buttons that jump to the details */
+button.warning-item { width: 100%; border: none; text-align: left; font: inherit; cursor: pointer; }
+.warning-more { display: block; margin-top: 0.2rem; font-size: 0.75rem; font-weight: 800; text-decoration: underline; }
+.warn-detail {
+  background-color: var(--white);
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.45rem;
+  scroll-margin-top: 110px; /* clear the pinned tabs */
+}
+.warn-detail h3 { margin-top: 0; color: #8A1500; }
+.warn-detail p + p { margin-top: 0.3rem; }
+.warn-detail.flash { animation: warn-flash 1.6s ease-out; }
+@keyframes warn-flash { 0%, 30% { box-shadow: 0 0 0 4px var(--red); } 100% { box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { .warn-detail.flash { animation: none; outline: 3px solid var(--red); } }

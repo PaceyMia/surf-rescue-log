@@ -51,7 +51,11 @@ async function getBom() {
         if (!t.forecast_winds && !t.forecast_seas && !t.forecast_weather) continue;
         const start = attr(p[1], 'start-time-utc');
         const label = start ? sydney(start, { weekday: 'long', day: 'numeric', month: 'short' }).replace(/ at .*/, '') : '';
-        if (periods.length < 2) warnings.forEach(w => coastWarnings.push({ title: w, area: name, source: 'BOM coastal waters forecast' }));
+        if (periods.length < 2) warnings.forEach(w => coastWarnings.push({
+          title: w, area: name, source: 'BOM coastal waters forecast',
+          detail: [t.forecast_winds && `Winds: ${t.forecast_winds}`, t.forecast_seas && `Seas: ${t.forecast_seas}`,
+                   t.forecast_swell1 && `Swell: ${t.forecast_swell1}`, t.forecast_caution].filter(Boolean).join('\n')
+        }));
         periods.push({
           label, warning: warnings.join(' · '),
           winds: t.forecast_winds || '', seas: t.forecast_seas || '',
@@ -87,8 +91,15 @@ async function getWarnings() {
     const ours = areas.split(/,| and /).map(a => a.trim()).filter(a => OUR_AREAS.test(a));
     const issued = (xml.match(/<issue-time-utc>([^<]+)</) || [])[1];
     const id = f.replace('.xml', '');
+    // Full text for the in-app details: situation, what applies where, advice
+    // Summary products (e.g. Marine Wind Warning Summary) only list phenomena and areas
+    const phen = texts('warning_phenomena'), areaList = texts('warning_areas');
+    const pairs = phen.map((p, k) => areaList[k] ? `${p}: ${areaList[k]}` : p);
+    const detail = [...texts('synoptic_situation'), ...pairs, ...texts('warning_advice')]
+      .filter(line => line && line.length > 5).join('\n');
     items.push({
       title,
+      detail,
       area: ours.length ? ours.join(', ') : '',
       issued: issued ? sydney(issued, { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '',
       link: `https://www.bom.gov.au/products/${id}.shtml`,

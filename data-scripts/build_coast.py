@@ -151,6 +151,56 @@ side = ((pts - vertex) * n).sum(1)
 dangling = (at_end & ~has_next) | (at_start & ~has_prev)
 is_water = (side > 0) | dangling
 free &= is_water.reshape(free.shape)
+# Estuaries mapped as water areas behind a coastline "closing line" (Port
+# Hacking): treat the water area as navigable (50 m off its shores) and open
+# the closing line where it crosses the mouth.
+from shapely.ops import polygonize
+est_polys = []
+est_types = []
+try:
+    wel = json.load(open('water.json'))['elements']
+except FileNotFoundError:
+    wel = []
+for e in wel:
+    if e['type'] == 'way' and 'geometry' in e:
+        c = [P(g['lat'], g['lon']) for g in e['geometry']]
+        if len(c) >= 4 and c[0] == c[-1] and e['tags'].get('water') not in ('wastewater', 'pond', 'reservoir', 'fountain'):
+            g = Polygon(c).buffer(0); est_polys.append(g); est_types.append((g, e['tags'].get('water')))
+    elif e['type'] == 'relation' and e['tags'].get('water') not in ('wastewater', 'pond', 'reservoir', 'fountain'):
+        outers = [LineString([P(g['lat'], g['lon']) for g in m['geometry']])
+                  for m in e.get('members', []) if m.get('role') == 'outer' and 'geometry' in m]
+        inners = [LineString([P(g['lat'], g['lon']) for g in m['geometry']])
+                  for m in e.get('members', []) if m.get('role') == 'inner' and 'geometry' in m]
+        outer_poly = unary_union(list(polygonize(unary_union(outers)))) if outers else None
+        if outer_poly and not outer_poly.is_empty:
+            inner_poly = unary_union(list(polygonize(unary_union(inners)))) if inners else None
+            g = outer_poly.difference(inner_poly) if inner_poly else outer_poly
+            est_polys.append(g); est_types.append((g, e['tags'].get('water')))
+# Only water areas the coastline closed off (their middle reads as land so far);
+# Botany Bay etc. are already water and their edges are real shoreline
+def _cell_free(pt):
+    r_, c_ = int((pt.y - y0) // CELL_M), int((pt.x - x0) // CELL_M)
+    return 0 <= r_ < rows and 0 <= c_ < cols and bool(free[r_, c_])
+# Rivers, harbours, bays and lagoons at any size; anything else only if large
+# (the harbour query also returns ponds, fountains and ocean pools)
+NAVIGABLE_WATER = ('river', 'harbour', 'bay', 'estuary', 'lagoon')
+est_polys = [g for g, wt in est_types if not g.is_empty and (wt in NAVIGABLE_WATER or g.area > 200_000)
+             and not _cell_free(g.representative_point())]
+if est_polys:
+    estuary = unary_union(est_polys)
+    # Coastline segments lying along the estuary edge are the closing line across the mouth
+    mouth = [LineString([a, b]) for l in coast for a, b in zip(list(l.coords), list(l.coords)[1:])
+             if estuary.boundary.distance(LineString([a, b]).centroid) < 30]
+    real_land = unary_union([g for g in coast + outcrops]).difference(unary_union([m.buffer(1) for m in mouth])) if mouth else land
+    # Sheltered estuaries narrow to ~150 m (Port Hacking at Lilli Pilli), so
+    # keep 25 m off their shores rather than 50 m or the channel closes
+    EST_CLEAR_M = 25.0
+    land_clear = real_land.buffer(EST_CLEAR_M, resolution=8).union(estuary.boundary.difference(unary_union([m.buffer(5) for m in mouth])).buffer(EST_CLEAR_M) if mouth else estuary.boundary.buffer(EST_CLEAR_M))
+    inside = shapely.contains_xy(estuary, XX, YY) & ~shapely.contains_xy(land_clear, XX, YY)
+    mouth_gap = shapely.contains_xy(unary_union([m.buffer(150) for m in mouth]), XX, YY) & ~shapely.contains_xy(real_land.buffer(CLEAR_M), XX, YY) if mouth else np.zeros_like(free)
+    free |= inside | mouth_gap
+    print('estuary polygons', len(est_polys), 'mouth segments', len(mouth), 'estuary cells', int(inside.sum()))
+
 # Flood fill from the open sea (east edge) so land interiors aren't "water"
 sea = np.zeros_like(free)
 q = deque((r, cols - 1) for r in range(rows) if free[r, cols - 1])
@@ -253,6 +303,8 @@ REGIONS = ['Manly & North Head', 'Harbour (eastern bays)', 'Eastern beaches', 'B
            'Kurnell & Cronulla', 'Port Hacking', 'Royal National Park']
 def region_of(lat, lon):
     if -33.875 < lat < -33.79 and 151.225 <= lon < 151.287 and not (lon > 151.2855 and lat > -33.806):
+        if lat > -33.826 and lon < 151.262:
+            return None  # Middle Harbour isn't one of the eastern bays
         return 'Harbour (eastern bays)'
     if lat >= -33.83 and lon >= 151.28:
         return 'Manly & North Head'
@@ -283,12 +335,19 @@ for e in names:
     if not name or lat is None: continue
     reg = region_of(lat, lon)
     if not reg: continue
-    if water_tree is not None and water_tree.query(P(lat, lon))[0] > 600: continue
     kind = t.get('natural') or t.get('place') or t.get('man_made') or t.get('leisure') or t.get('amenity') or ''
+    # Beaches, bays, points, islands, reefs and lighthouses — plus spots asked for by name
+    named_spot = any(k in name for k in ('Ugly', 'Figure Eight', 'Bundeena', 'Maianbar'))
+    if kind not in ('beach', 'bay', 'cape', 'peninsula', 'island', 'islet', 'reef', 'shoal', 'lighthouse') and not named_spot:
+        continue
+    # Suburb/locality points sit mid-suburb, so allow them further from the water
+    limit = 1500 if kind in ('suburb', 'locality', 'village') or 'Ugly' in name else 600
+    if water_tree is not None and water_tree.query(P(lat, lon))[0] > limit: continue
     cands.append((KIND_RANK.get(kind, 6), name.strip(), reg, round(lat, 5), round(lon, 5)))
 cands.sort()
 for rank, name, reg, lat, lon in cands:
-    if any(p['name'].lower() == name.lower() and abs(p['lat'] - lat) < 0.01 and abs(p['lon'] - lon) < 0.012 for p in route_places):
+    norm = lambda n: n.lower().replace("'", '').replace('’', '').replace(' reserve', '')
+    if any(norm(p['name']) == norm(name) and abs(p['lat'] - lat) < 0.01 and abs(p['lon'] - lon) < 0.012 for p in route_places):
         continue
     route_places.append({'name': name, 'region': reg, 'lat': lat, 'lon': lon})
 route_places.sort(key=lambda p: (REGIONS.index(p['region']), -p['lat'] if p['region'] != 'Botany Bay & Georges River' else p['lon']))
