@@ -574,11 +574,14 @@ let continueTimer = null;
 // Android sends each result as the whole phrase so far ("departing",
 // "departing Botany", "departing Botany Bay"); desktop sends new pieces.
 // Merge either into one clean sentence without repeats.
+// Compare ignoring case and punctuation (Safari re-sends phrases re-cased)
+const normWords = t => t.toLowerCase().replace(/[^a-z0-9' ]+/g, ' ').replace(/\s+/g, ' ').trim();
+
 function mergeText(a, b) {
   if (!a) return b;
-  const la = a.toLowerCase(), lb = b.toLowerCase();
-  if (lb.startsWith(la)) return b;      // cumulative result: the new one supersedes
-  if (la.includes(lb)) return a;        // repeat of words already heard
+  const na = normWords(a), nb = normWords(b);
+  if (nb.startsWith(na)) return b;      // cumulative result: the new one supersedes
+  if (na.endsWith(nb)) return a;        // the last words re-sent
   return `${a} ${b}`;
 }
 
@@ -596,7 +599,8 @@ const fullText = () => [baseText, heardText].filter(Boolean).join(' ').trim();
 function saveDraft() {
   const text = fullText();
   if (!text) return;
-  storeSet(DRAFT_KEY, JSON.stringify({ startedAt: startedAt.toISOString(), text, pos: entryPos }));
+  const continuing = Boolean(continueEntry && logs.includes(continueEntry));
+  storeSet(DRAFT_KEY, JSON.stringify({ startedAt: startedAt.toISOString(), text, pos: entryPos, continuing }));
 }
 
 function renderLive() {
@@ -924,7 +928,15 @@ loadLogsFromStorage();
   try {
     const draft = JSON.parse(storeGet(DRAFT_KEY));
     if (draft && draft.text) {
-      addLogEntry(`${draft.text} [recovered]`, { timestamp: new Date(draft.startedAt), pos: draft.pos });
+      const when = new Date(draft.startedAt);
+      // Closed during "Continue entry": update that entry rather than add a copy
+      const existing = draft.continuing && logs.find(e => e.timestamp.getTime() === when.getTime());
+      if (existing) {
+        existing.text = formatText(`${draft.text} [recovered]`);
+        updateEntry(existing);
+      } else {
+        addLogEntry(`${draft.text} [recovered]`, { timestamp: when, pos: draft.pos });
+      }
       statusMsg.textContent = '⚠️ Recovered an entry that was being recorded when the app closed.';
     }
   } catch { /* unreadable draft — nothing to recover */ }

@@ -1,5 +1,5 @@
 /* ── Surf Patrol Log – tools.js ──
-   Tools tab: speed/distance/time, position & bearing, fuel range.
+   Tools tab: speed/distance/time and fuel range.
    Defaults are nautical: knots, nautical miles, hours and minutes.
 */
 (() => {
@@ -79,64 +79,6 @@
     [speed, dist, hrs, mins].forEach(i => { i.value = ''; });
     lastEdited = [];
     sdtResult.textContent = '';
-  });
-
-  // ── Position & bearing ────────────────────────────────────────────
-  const posNow = $('pos-now');
-  const target = $('pos-target');
-  const targetResult = $('pos-target-result');
-  let here = null;
-
-  PLACES.filter(p => p.lat != null)
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .forEach(p => {
-      const opt = document.createElement('option');
-      opt.value = p.name;
-      opt.textContent = p.name.replace(' Manly', ' (Manly)');
-      target.append(opt);
-    });
-  const blank = document.createElement('option');
-  blank.value = '';
-  blank.textContent = 'Choose a place…';
-  target.prepend(blank);
-  target.value = '';
-
-  function renderTarget() {
-    const place = PLACES.find(p => p.name === target.value);
-    if (!place) { targetResult.textContent = ''; return; }
-    if (!here) { targetResult.textContent = 'Get GPS first.'; return; }
-    const d = distanceNm(here.lat, here.lon, place.lat, place.lon);
-    const b = bearingDeg(here.lat, here.lon, place.lat, place.lon);
-    const s = num(speed);
-    const time = s ? ` · ${fmtDuration(d / toKn(s))} at ${s} ${sUnit()}` : '';
-    targetResult.textContent = `${d.toFixed(2)} NM, bearing ${String(Math.round(b) % 360).padStart(3, '0')}°T${time}`;
-  }
-
-  $('pos-get').addEventListener('click', async () => {
-    posNow.textContent = 'Getting GPS fix…';
-    here = await getPosition(20000);
-    if (!here) { posNow.textContent = '⚠️ GPS unavailable — allow location access for this site.'; return; }
-    posNow.innerHTML = '';
-    [formatDDM(here.lat, here.lon), formatDMS(here.lat, here.lon), formatDecimal(here.lat, here.lon),
-     describeFromLandmark(here.lat, here.lon), `Accuracy ±${here.acc} m`]
-      .forEach((line, i) => {
-        const div = document.createElement('div');
-        div.textContent = line;
-        if (i === 0) div.className = 'big';
-        posNow.append(div);
-      });
-    renderTarget();
-  });
-  target.addEventListener('change', renderTarget);
-
-  const convIn = $('pos-convert'), convOut = $('pos-convert-result');
-  convIn.addEventListener('input', () => {
-    if (!convIn.value.trim()) { convOut.textContent = ''; return; }
-    const p = parsePosition(convIn.value);
-    if (!p) { convOut.textContent = 'Not recognised — try “33 58.12 S 151 15.45 E”.'; return; }
-    convOut.innerHTML = '';
-    [formatDDM(p.lat, p.lon), formatDMS(p.lat, p.lon), formatDecimal(p.lat, p.lon), describeFromLandmark(p.lat, p.lon)]
-      .forEach(line => { const div = document.createElement('div'); div.textContent = line; convOut.append(div); });
   });
 
   // ── Fuel & range (rule of thirds) ─────────────────────────────────
