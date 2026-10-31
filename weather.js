@@ -103,51 +103,24 @@
   }
 
   // ── Tide ──────────────────────────────────────────────────────────
-  // WillyWeather predictions when available, otherwise the Open-Meteo sea
-  // level model (an estimate — timing can be out by 20–40 minutes).
-  function tideInfo(marine) {
+  // Calculated on the phone from Fort Denison harmonic constants (tide.js):
+  // free, works offline, high/low times within a few minutes.
+  function tideInfo() {
     const now = Date.now();
-    const ww = feed?.data?.ww?.tides;
-    if (ww?.length) {
-      const events = ww.map(t => ({ at: new Date(t.dateTime.replace(' ', 'T') + '+11:00'), type: t.type, height: t.height }))
-        .filter(e => !Number.isNaN(e.at.getTime())).sort((a, b) => a.at - b.at);
-      const next = events.filter(e => e.at > now);
-      if (next.length) {
-        return {
-          trend: next[0].type === 'high' ? 'rising' : 'falling',
-          nextHigh: next.find(e => e.type === 'high'), nextLow: next.find(e => e.type === 'low'),
-          prev: events.filter(e => e.at <= now).pop(),
-          source: 'WillyWeather'
-        };
-      }
-    }
-    const h = marine?.hourly;
-    if (!h?.sea_level_height_msl) return null;
-    const pts = h.time.map((t, i) => ({ at: new Date(t + ':00+11:00'), v: h.sea_level_height_msl[i] })).filter(p => p.v != null);
-    // Turning points with a parabola through each local max/min for the time
-    const events = [];
-    for (let i = 1; i < pts.length - 1; i++) {
-      const [a, b, c] = [pts[i - 1].v, pts[i].v, pts[i + 1].v];
-      const isHigh = b >= a && b > c, isLow = b <= a && b < c;
-      if (!isHigh && !isLow) continue;
-      const denom = a - 2 * b + c;
-      const offset = denom ? 0.5 * (a - c) / denom : 0; // hours from pts[i]
-      events.push({ at: new Date(pts[i].at.getTime() + offset * 3600000), type: isHigh ? 'high' : 'low', height: b - denom * offset * offset / 4 });
-    }
+    const events = Tide.turns(now - 13 * 3600000, now + 30 * 3600000);
     const next = events.filter(e => e.at > now);
     if (!next.length) return null;
     return {
       trend: next[0].type === 'high' ? 'rising' : 'falling',
       nextHigh: next.find(e => e.type === 'high'), nextLow: next.find(e => e.type === 'low'),
       prev: events.filter(e => e.at <= now).pop(),
-      source: 'model estimate'
+      source: 'Fort Denison'
     };
   }
 
-  // The model estimate can be ~30–40 min off at the turn, so within the
-  // margin of a high or low say "Near high/low" rather than guess a direction
+  // Within 15 minutes of a high or low, say so rather than rising/falling
   function tideHeadline(tide) {
-    const margin = (tide.source === 'model estimate' ? 45 : 15) * 60000;
+    const margin = 15 * 60000;
     const next = [tide.nextHigh, tide.nextLow].filter(Boolean).sort((a, b) => a.at - b.at)[0];
     const prev = tide.prev;
     if (next && next.at - Date.now() < margin) return next.type === 'high' ? '≈ Near high' : '≈ Near low';
@@ -163,7 +136,7 @@
         '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,temperature_2m,weather_code' +
         '&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m'),
       fetchJson(`https://marine-api.open-meteo.com/v1/marine?${common}` +
-        '&hourly=swell_wave_height,swell_wave_direction,swell_wave_period,sea_surface_temperature,sea_level_height_msl')
+        '&hourly=swell_wave_height,swell_wave_direction,swell_wave_period,sea_surface_temperature')
     ]);
     return { wx, sea };
   }
@@ -201,7 +174,7 @@
     const si = m.time.indexOf(h.time[start]);
     const c = wx.current || {};
     const sun = sunToday();
-    const tide = tideInfo(sea);
+    const tide = tideInfo();
 
     const grid = el('div', 'tiles');
     grid.append(
@@ -211,8 +184,8 @@
         `${fmt(m.swell_wave_period[si])} s period`),
       tide
         ? tile('Tide', tideHeadline(tide),
-            [tide.nextHigh && `High ${hhmm(tide.nextHigh.at)}`, tide.nextLow && `Low ${hhmm(tide.nextLow.at)}`].filter(Boolean).join(' · ') +
-            (tide.source === 'model estimate' ? ' (est.)' : ''))
+            [tide.nextHigh && `High ${hhmm(tide.nextHigh.at)} (${fmt(tide.nextHigh.height, 1)} m)`,
+             tide.nextLow && `Low ${hhmm(tide.nextLow.at)} (${fmt(tide.nextLow.height, 1)} m)`].filter(Boolean).join(' · '))
         : tile('Tide', '–', 'no tide data'),
       tile('Water', `${fmt(m.sea_surface_temperature[si], 1)} °C`, c.temperature_2m != null ? `air ${fmt(c.temperature_2m)} °C` : ''),
       tile('Sunrise / Sunset', `${sun.sunrise ? hhmm(sun.sunrise) : '–'} · ${sun.sunset ? hhmm(sun.sunset) : '–'}`, ''),
@@ -229,12 +202,10 @@
     const cols = [];
     for (let i = start; i < end; i++) cols.push(i);
 
-    // Tide direction per hour from the model series (or WillyWeather events)
+    // Tide direction per hour from the Fort Denison prediction
     const tideAt = i => {
-      const j = m.time.indexOf(h.time[i]);
-      const lvl = m.sea_level_height_msl;
-      if (!lvl || j < 0 || j + 1 >= lvl.length) return '';
-      return lvl[j + 1] > lvl[j] ? '↑' : '↓';
+      const ms = new Date(h.time[i] + ':00+11:00').getTime();
+      return Tide.height(ms + 1800000) > Tide.height(ms) ? '↑' : '↓';
     };
 
     const rows = [

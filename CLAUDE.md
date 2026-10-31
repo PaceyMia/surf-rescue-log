@@ -16,6 +16,7 @@ Mobile-first voice log and toolkit for the Surf Rescue 30 offshore rescue boat (
 | `vocab.js` | Transcript clean-up: place names, mishearings, marine terms, 12/24h times. Phrase hints for Chrome |
 | `places.js` | Generated place list (Central Coast → Illawarra) with OSM coordinates; `confirmed:false` = nickname for the skipper to check |
 | `geo.js` | DDM/DMS formatting, distance/bearing, nearest landmark, position parsing |
+| `tide.js` / `tide-constants.js` | Fort Denison tide predictions on the phone (harmonic constants with nodal corrections). Refit yearly: `python3 data-scripts/fit_tides.py h333.csv tide-constants.js` with https://uhslc.soest.hawaii.edu/data/csv/fast/hourly/h333.csv |
 | `coast.js` | Generated coastline + outcrops (South Head → Cape Baily), pre-computed 2 NM / warning lines, and the navigable-water grid for routing |
 | `geofence.js` | 2 NM boundary alarm (watchPosition) and SVG map |
 | `route.js` | Job route by water (A* on the navigable grid; 50 m off land, 25 m in estuaries), searchable From/To pickers, courses, time at speed, route map |
@@ -31,6 +32,8 @@ Storage keys: `surfPatrolLogs`, `surfPatrolShift`, `surfPatrolCrewNames`, `surfP
 
 When adding a file the app loads, add it to `SHELL` in `sw.js` and bump `CACHE`.
 
+Never use `confirm()`/`alert()`: browsers label them with the site address. Use `askConfirm()` (in-app dialog) or a status message.
+
 ## Recording behaviour
 Push to talk: one tap starts one recognition session, the next tap stops and saves it. Never restart sessions automatically — on Android every start plays the phone's tone and re-sends earlier words. The transcript is rebuilt from the session's full `event.results` on every event and merged so Android's cumulative results ("departing", "departing Botany", …) don't repeat. If the phone ends the session itself (long silence), what was heard is saved and the button offers "Continue entry" for 60 s, which appends to that same entry. Entries are timestamped at the start of recording and get a GPS position if available.
 
@@ -41,7 +44,6 @@ Push to talk: one tap starts one recognition session, the next tap stops and sav
 - Boundary data covers South Head → Cape Baily only; Botany Bay interior is excluded (all within 2 NM).
 - BOM's website refuses automated requests; only use the FTP service for BOM files. Don't spoof a browser user agent.
 - WillyWeather field names in `fetch_weather.mjs` need checking against the first live response once `WW_API_KEY` is set.
-- Tide is a model estimate (Open-Meteo sea level) until WillyWeather tides are available.
 
 ## Stakeholder app guide
 An annotated walkthrough of every screen lives at https://claude.ai/artifact/KcQsu3EAdzrB7qeMDWwYVr (owner: Mia). Keep it current: after any UI change, update the matching entry in `docs/guide/components.mjs` (what / how to use / data / note), then

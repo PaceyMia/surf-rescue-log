@@ -4,9 +4,9 @@
    the cached copy is only used when the network fails. Weather data is
    not cached here (weather.js keeps its own last-good copy).
 */
-const CACHE = 'sr30-shell-v5';
+const CACHE = 'sr30-shell-v6';
 const SHELL = [
-  './', 'index.html', 'style.css', 'config.js', 'places.js', 'vocab.js', 'geo.js',
+  './', 'index.html', 'style.css', 'config.js', 'places.js', 'vocab.js', 'geo.js', 'tide-constants.js', 'tide.js',
   'coast.js', 'geofence.js', 'route.js', 'setup.js', 'script.js', 'weather.js', 'tools.js',
   'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'
 ];

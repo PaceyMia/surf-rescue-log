@@ -297,6 +297,9 @@ await check('swipe deletes an entry', async () => {
   await card.dispatchEvent('touchstart', { touches: [{ identifier: 0, clientX: box.x + 20, clientY: y }] });
   await card.dispatchEvent('touchmove', { touches: [{ identifier: 0, clientX: box.x + 160, clientY: y }] });
   await card.dispatchEvent('touchend', { touches: [] });
+  await page.waitForSelector('#confirm-dialog[open]');
+  assert((await page.textContent('#confirm-text')).startsWith('Delete this entry?'), 'in-app confirm not shown');
+  await page.click('#confirm-ok');
   await page.waitForTimeout(400);
   assert((await entryTexts()).length === count - 1, 'entry not deleted');
 });
@@ -332,11 +335,12 @@ await check('weather tab: warnings, now tiles, tide, sun and first/last light', 
   assert(await page.$eval('.warning-item', el => el.tagName) === 'DIV', 'warnings should not be clickable');
   const now = await page.textContent('#wx-now');
   assert(!now.includes('Waves'), 'Waves tile should be gone');
-  for (const want of ['14 kn NNE', '1.2 m S', '20.5 °C', '↑ Rising', 'Sunrise / Sunset', 'First / Last Light']) {
+  for (const want of ['14 kn NNE', '1.2 m S', '20.5 °C', 'Sunrise / Sunset', 'First / Last Light']) {
     assert(now.includes(want), `missing "${want}" in "${now}"`);
   }
   assert(/First \/ Last Light\s*0[45]:\d\d · (19|20):\d\d/.test(now), 'first/last light times');
-  assert(/High \d\d:\d\d · Low \d\d:\d\d \(est\.\)/.test(now), 'tide times should be 24-hour and marked as an estimate');
+  assert(/(Rising|Falling|Near high|Near low)/.test(now), 'tide direction missing');
+  assert(/High \d\d:\d\d \(\d\.\d m\) · Low \d\d:\d\d \(\d\.\d m\)|Low \d\d:\d\d \(\d\.\d m\)/.test(now), 'tide times should be 24-hour with heights');
   assert((await page.textContent('#bom-body')).includes('Strong Wind Warning for Saturday'), 'BOM forecast not shown');
   assert(!(await page.textContent('#bom-body')).includes('Illawarra'), 'BOM forecast should be Sydney Coast only');
 });
@@ -360,6 +364,16 @@ await check('weather tab shows a loading screen until the data is in', async () 
   await p2.waitForSelector('.tile', { timeout: 5000 });
   assert(!(await p2.isVisible('#wx-loading')), 'spinner still shown after loading');
   await ctx2.close();
+});
+
+await check('tide prediction: Saturday 31 Oct high at about 12:56 at Fort Denison', async () => {
+  const turns = await page.evaluate(() => {
+    const from = Date.parse('2026-10-31T09:00:00+11:00');
+    return Tide.turns(from, from + 8 * 3600000).map(e => ({ type: e.type, at: e.at.toISOString() }));
+  });
+  const high = turns.find(t => t.type === 'high');
+  const mins = (Date.parse(high.at) - Date.parse('2026-10-31T12:56:00+11:00')) / 60000;
+  assert(Math.abs(mins) <= 5, `high predicted at ${high.at}`);
 });
 
 await check('weather tab: 24-hour strip with coloured wind', async () => {
