@@ -184,6 +184,18 @@
     <!-- ── Tools tab ── -->
     <section id="panel-tools" class="panel scroll-panel" role="tabpanel" hidden>
       <div class="card">
+        <h2>Job Route</h2>
+        <p class="muted small">Distance, courses and time by water — goes around headlands and rocks.</p>
+        <div class="calc-grid">
+          <label>From<select id="route-from" aria-label="Start"></select></label>
+          <label>To<select id="route-to" aria-label="Job location"></select></label>
+          <label>Speed (kn)<input id="route-speed" type="number" inputmode="decimal" min="1" step="any" placeholder="e.g. 20" /></label>
+        </div>
+        <div id="route-result" class="result" aria-live="polite"></div>
+        <svg id="route-map" role="img" aria-label="Map of the route by water"></svg>
+      </div>
+
+      <div class="card">
         <h2>2 NM Boundary</h2>
         <button id="boundary-toggle" class="tool-btn" type="button" aria-pressed="false">🛟 Boundary alarm: OFF</button>
         <p id="boundary-readout" class="result">Alarm off.</p>
@@ -234,12 +246,25 @@
           <label>Cruise speed (kn)<input id="fuel-speed" type="number" inputmode="decimal" min="0" step="any" /></label>
         </div>
         <p id="fuel-result" class="result" aria-live="polite"></p>
-        <p class="muted small">Uses the rule of thirds: ⅓ out, ⅓ back, ⅓ reserve. Tank capacity 450 L.</p>
+        <p class="muted small">For long jobs: an extended search, a tow to Botany Bay, or a job outside the usual patrol area. It tells you how long you can stay out and how far you can go before you must turn back, keeping a third in reserve (rule of thirds: ⅓ out, ⅓ back, ⅓ reserve). Towing and heavy seas burn more — use a higher burn rate. Tank capacity 450 L.</p>
       </div>
     </section>
 
     <!-- ── Info tab ── -->
     <section id="panel-info" class="panel scroll-panel" role="tabpanel" hidden>
+      <div class="card" id="setup-card">
+        <h2>Phone Setup Check</h2>
+        <p class="muted small">The app needs the microphone for voice entries, location for positions and the 2 NM alarm, and notifications for boundary alerts.</p>
+        <ul id="perm-list" class="perm-list"></ul>
+        <button id="perm-request" class="tool-btn" type="button">Allow access</button>
+        <details class="explain">
+          <summary>If something says “Blocked”</summary>
+          <p><strong>iPhone / iPad (Safari):</strong> Settings → Privacy &amp; Security → Location Services → Safari Websites → <em>While Using</em>. Then in Safari, tap <strong>aA</strong> in the address bar → Website Settings → Microphone and Location → <em>Allow</em>. For notifications, add the app to the Home Screen first (Share → Add to Home Screen), open it from the icon, then tap Allow access.</p>
+          <p><strong>Android (Chrome):</strong> tap the icon left of the address → Permissions → turn on Microphone, Location and Notifications. Also check Android Settings → Location is on and Chrome is allowed to use it.</p>
+          <p>After changing a setting, close and reopen the app.</p>
+        </details>
+      </div>
+
       <p class="draft-note">Draft reference — confirm against current SLSA SOPs and the skipper before relying on it.</p>
 
       <details class="card" open>
@@ -356,6 +381,8 @@
   <script src="coast.js"></script>
   <script src="script.js"></script>
   <script src="geofence.js"></script>
+  <script src="route.js"></script>
+  <script src="setup.js"></script>
   <script src="weather.js"></script>
   <script src="tools.js"></script>
 </body>

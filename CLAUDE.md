@@ -1,6 +1,6 @@
 # Surf Rescue 30 — Patrol Log
 
-Mobile-first voice log and toolkit for the Surf Rescue 30 offshore rescue boat (Malabar, Sydney). Plain HTML/CSS/JS served as static files (GitHub Pages). No build step, no framework. The only server piece is the optional weather relay in `relay/` (Cloudflare Worker).
+Mobile-first voice log and toolkit for the Surf Rescue 30 offshore rescue boat (Malabar, Sydney). Plain HTML/CSS/JS served as static files (GitHub Pages). No build step, no framework, no server. BOM and WillyWeather data come from a scheduled GitHub workflow that publishes `weather.json` to the `weather-data` branch.
 
 ## Constraints that drive every change
 - **Used on a boat.** Direct sunlight (high contrast only), wet fingers (≥48px targets, every swipe has a button equivalent), patchy signal.
@@ -11,21 +11,23 @@ Mobile-first voice log and toolkit for the Surf Rescue 30 offshore rescue boat (
 ## Files
 | File | Role |
 |---|---|
-| `index.html` / `style.css` | Start screen, tabs (Log, Weather, Tools, Info), edit dialog |
+| `index.html` / `style.css` | Start screen, tabs (Log, Weather, Tools, Info), edit dialog. The page scrolls; the red/yellow header scrolls away and `#sticky-top` (tabs + boundary bar) stays pinned; the mic footer is sticky at the bottom |
 | `script.js` | Log, shift/crew, recording, tabs, report |
 | `vocab.js` | Transcript clean-up: place names, mishearings, marine terms, 12/24h times. Phrase hints for Chrome |
 | `places.js` | Generated place list (Central Coast → Illawarra) with OSM coordinates; `confirmed:false` = nickname for the skipper to check |
 | `geo.js` | DDM/DMS formatting, distance/bearing, nearest landmark, position parsing |
-| `coast.js` | Generated coastline + outcrops (South Head → Cape Baily) and pre-computed 2 NM / warning lines |
+| `coast.js` | Generated coastline + outcrops (South Head → Cape Baily), pre-computed 2 NM / warning lines, and the navigable-water grid for routing |
 | `geofence.js` | 2 NM boundary alarm (watchPosition) and SVG map |
-| `weather.js` | Open-Meteo forecast (direct), BOM + WillyWeather (via relay), Windy map, cached last-good data |
+| `route.js` | Job route by water (A* on the navigable grid, ≥100 m off land), courses, time at speed, route map |
+| `setup.js` | Phone setup check: mic / location / notification permissions with one-tap request |
+| `weather.js` | Warnings (badge + Log banner), BOM forecast and WillyWeather from `weather.json`; Open-Meteo now tiles, tide, 24 h strip; sun/first/last light computed locally; wind units (kn/km/h) remembered; Windy (wind, waves) and RainViewer radar (auto-play) maps, one iframe per layer |
 | `tools.js` | Speed/distance/time, position & bearing, fuel range (rule of thirds) |
-| `config.js` | `relayUrl` (empty until the Worker is deployed) |
+| `config.js` | `dataUrl` (raw URL of `weather.json`), forecast point |
 | `sw.js` / `manifest.webmanifest` / `icons/` | App shell cache (network-first), Home Screen install |
-| `relay/` | Cloudflare Worker for BOM XML + WillyWeather (keeps the key secret) |
-| `data-scripts/` | Regenerate `places.js` and `coast.js` from OpenStreetMap |
+| `.github/workflows/weather-data.yml` + `data-scripts/fetch_weather.mjs` | Every 30 min: BOM coastal/local waters forecasts and current NSW warning products via BOM's anonymous FTP, WillyWeather via API (repo secret `WW_API_KEY`), published to the `weather-data` branch |
+| `data-scripts/` | Regenerate `places.js` and `coast.js` from OpenStreetMap; build `weather.json` |
 
-Storage keys: `surfPatrolLogs`, `surfPatrolShift`, `surfPatrolCrewNames`, `surfPatrolDraft`, `surfPatrolTab`, `surfPatrolBoundaryAlarm`, `surfPatrolFuel`, `surfPatrolWx/Bom/Ww` (weather caches).
+Storage keys: `surfPatrolLogs`, `surfPatrolShift`, `surfPatrolCrewNames`, `surfPatrolDraft`, `surfPatrolTab`, `surfPatrolBoundaryAlarm`, `surfPatrolFuel`, `surfPatrolUnits`, `surfPatrolRoute`, `surfPatrolWx` / `surfPatrolFeed` (weather caches).
 
 When adding a file the app loads, add it to `SHELL` in `sw.js` and bump `CACHE`.
 
@@ -37,7 +39,10 @@ The mic stays live until Stop is tapped. If the browser ends the session (silenc
 - iOS Safari speech in continuous mode is untested on a real device; restarts may need a tap.
 - The boundary alarm only runs while the app is open on screen (web apps get no background GPS). Notifications on iPhone/iPad need the app added to the Home Screen.
 - Boundary data covers South Head → Cape Baily only; Botany Bay interior is excluded (all within 2 NM).
-- The relay isn't deployed yet; WillyWeather field names in `relay/worker.js` need checking against live responses.
+- BOM's website refuses automated requests; only use the FTP service for BOM files. Don't spoof a browser user agent.
+- BOM warning products (IDN2xxxx) are parsed for their titles only; `raw-warnings/` on the weather-data branch holds samples while the parser is refined.
+- WillyWeather field names in `fetch_weather.mjs` need checking against the first live response once `WW_API_KEY` is set.
+- Tide is a model estimate (Open-Meteo sea level) until WillyWeather tides are available.
 
 ## Verifying changes
 Speech can't be driven in headless Chromium, so the smoke test injects a fake `SpeechRecognition`, fake GPS, and mocked weather/relay responses:

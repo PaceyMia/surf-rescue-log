@@ -12,6 +12,10 @@ for (a,b),(c,d) in zip(anchors,anchors[1:]):
     for i in range(n+1):
         lat=a+(c-a)*i/n; lon=b+(d-b)*i/n
         tiles.add((round(lat/STEP)*STEP, round(lon/STEP)*STEP))
+# Botany Bay north shore and Cape Banks — the path above misses short coastline
+# pieces there, which would let the route calculator cut across La Perouse
+for lat, lon in [(-33.997,151.253),(-33.998,151.237),(-33.982,151.226),(-33.972,151.214)]:
+    tiles.add((round(lat/STEP)*STEP, round(lon/STEP)*STEP))
 print(len(tiles),'tiles',flush=True)
 nodes={}; ways={}; lone=[]
 KEEP_NAT={'coastline','bare_rock','rock','reef','shoal','stone','cliff'}

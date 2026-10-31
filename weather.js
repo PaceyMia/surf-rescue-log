@@ -289,7 +289,8 @@
 
     // App-wide signals: tab badge and a banner on the Log tab
     warnBadge.hidden = !list.length;
-    warnBadge.textContent = list.length ? ` ⚠${list.length}` : '';
+    warnBadge.textContent = list.length ? String(list.length) : '';
+    warnBadge.setAttribute('aria-label', `${list.length} weather warnings`);
     warnBanner.hidden = !list.length;
     if (list.length) {
       warnBanner.textContent = `⚠️ ${list[0].title}${list.length > 1 ? ` (+${list.length - 1} more)` : ''}`;
