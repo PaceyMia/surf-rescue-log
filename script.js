@@ -178,6 +178,20 @@ function removeEntry(entry) {
   if (logs.length === 0) logEntries.innerHTML = EMPTY_MSG;
 }
 
+// ── In-app confirmation ─────────────────────────────────────────────
+// Used instead of the browser's confirm(), which shows the site's web
+// address ("paceymia.github.io says…") above the question.
+const confirmDialog = document.getElementById('confirm-dialog');
+function askConfirm(message, okLabel) {
+  return new Promise(resolve => {
+    document.getElementById('confirm-text').textContent = message;
+    document.getElementById('confirm-ok').textContent = okLabel;
+    confirmDialog.returnValue = '';
+    confirmDialog.addEventListener('close', () => resolve(confirmDialog.returnValue === 'ok'), { once: true });
+    confirmDialog.showModal();
+  });
+}
+
 // ── Edit / delete dialog (tap an entry) ─────────────────────────────
 let editing = null;
 
@@ -188,7 +202,7 @@ function openEditor(entry) {
   editText.focus();
 }
 
-editDialog.addEventListener('close', () => {
+editDialog.addEventListener('close', async () => {
   const entry = editing;
   editing = null;
   if (!entry) return;
@@ -200,7 +214,7 @@ editDialog.addEventListener('close', () => {
       statusMsg.textContent = '✅ Entry updated.';
     }
   } else if (editDialog.returnValue === 'delete') {
-    if (confirm('Are you sure you want to delete this entry?')) {
+    if (await askConfirm("Delete this entry? This can't be undone.", 'Delete')) {
       removeEntry(entry);
       statusMsg.textContent = 'Entry deleted.';
     }
@@ -239,7 +253,7 @@ function addSwipeToDelete(card, entry) {
     card.style.opacity   = opacity;
   }, { passive: true });
 
-  card.addEventListener('touchend', () => {
+  card.addEventListener('touchend', async () => {
     if (!tracking) return;
     // The click (if any) fires right after touchend; clear the flag after it
     setTimeout(() => { delete card.dataset.swiped; }, 400);
@@ -252,7 +266,7 @@ function addSwipeToDelete(card, entry) {
     };
 
     if (Math.abs(currentX) >= THRESHOLD) {
-      const confirmed = confirm('Are you sure you want to delete this entry?');
+      const confirmed = await askConfirm("Delete this entry? This can't be undone.", 'Delete');
 
       if (confirmed) {
         // Slide fully off-screen then remove from DOM + storage
@@ -807,9 +821,9 @@ markBtn.addEventListener('click', async () => {
 });
 
 // ── New Patrol ──────────────────────────────────────────────────────
-newPatrolBtn.addEventListener('click', () => {
-  const confirmed = confirm(
-    'Are you sure you want to start a new patrol? This will clear the current log.'
+newPatrolBtn.addEventListener('click', async () => {
+  const confirmed = await askConfirm(
+    'Start a new patrol? This clears the current log and crew. Send the End of Shift report first.', 'Start new patrol'
   );
   if (!confirmed) return;
 
@@ -883,7 +897,7 @@ function downloadReport(content, filename) {
 
 reportBtn.addEventListener('click', async () => {
   if (logs.length === 0) {
-    alert('No log entries to export yet.');
+    statusMsg.textContent = 'No log entries to send yet.';
     return;
   }
 

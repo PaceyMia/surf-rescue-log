@@ -1291,3 +1291,17 @@ button.warning-item { width: 100%; border: none; text-align: left; font: inherit
 .perm-list li.tappable { cursor: pointer; }
 .perm-list li.tappable:focus-visible { outline: 3px solid var(--navy); outline-offset: 2px; }
 .perm-hint { grid-column: 1 / -1; color: #0047A0 !important; font-weight: 800 !important; text-decoration: underline; }
+
+/* ── In-app confirmation ── */
+#confirm-dialog {
+  margin: auto;
+  width: min(92vw, 440px);
+  border: none;
+  border-radius: 14px;
+  padding: 1rem;
+  background-color: var(--light-bg);
+  color: var(--navy);
+}
+#confirm-dialog::backdrop { background-color: rgba(0, 20, 40, 0.7); }
+#confirm-text { font-size: 1.05rem; font-weight: 700; line-height: 1.4; }
+#confirm-ok { background-color: var(--red); border-color: var(--red); color: var(--white); }

@@ -363,10 +363,22 @@
     </form>
   </dialog>
 
+  <dialog id="confirm-dialog">
+    <form method="dialog">
+      <p id="confirm-text"></p>
+      <div class="dialog-buttons">
+        <button value="cancel" type="submit">Cancel</button>
+        <button value="ok" id="confirm-ok" type="submit">Delete</button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="config.js"></script>
   <script src="places.js"></script>
   <script src="vocab.js"></script>
   <script src="geo.js"></script>
+  <script src="tide-constants.js"></script>
+  <script src="tide.js"></script>
   <script src="coast.js"></script>
   <script src="script.js"></script>
   <script src="geofence.js"></script>
