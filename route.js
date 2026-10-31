@@ -56,59 +56,74 @@
   }
 
   // ── A* over 8-connected water cells ───────────────────────────────
+  // Typed arrays and a flat binary heap: no allocation per step, so the
+  // longest routes take a fraction of a second on an older phone.
   function astar(start, goal) {
-    const N = nav.rows * nav.cols;
+    const cols = nav.cols, rows = nav.rows, N = rows * cols;
     const g = new Float32Array(N).fill(Infinity);
     const came = new Int32Array(N).fill(-1);
     const closed = new Uint8Array(N);
-    const idx = (r, c) => r * nav.cols + c;
-    const h = (r, c) => Math.hypot(r - goal[0], c - goal[1]) * COST[4]; // admissible with the cheapest cost
-    const heap = []; // [f, index]
+    const [gr, gc] = goal;
+    // Octile distance at the cheapest cost: still never overestimates, but
+    // tighter than straight-line distance, so fewer cells are explored
+    const minCost = COST[4];
+    const h = (r, c) => {
+      const dr = Math.abs(r - gr), dc = Math.abs(c - gc);
+      return (Math.max(dr, dc) + (Math.SQRT2 - 1) * Math.min(dr, dc)) * minCost;
+    };
+    let keys = new Float64Array(4096), vals = new Int32Array(4096), size = 0;
     const push = (f, i) => {
-      heap.push([f, i]);
-      let k = heap.length - 1;
-      while (k > 0) { const p = (k - 1) >> 1; if (heap[p][0] <= heap[k][0]) break; [heap[p], heap[k]] = [heap[k], heap[p]]; k = p; }
+      if (size === keys.length) {
+        const k2 = new Float64Array(size * 2); k2.set(keys); keys = k2;
+        const v2 = new Int32Array(size * 2); v2.set(vals); vals = v2;
+      }
+      let k = size++;
+      while (k > 0) {
+        const p = (k - 1) >> 1;
+        if (keys[p] <= f) break;
+        keys[k] = keys[p]; vals[k] = vals[p]; k = p;
+      }
+      keys[k] = f; vals[k] = i;
     };
     const pop = () => {
-      const top = heap[0], last = heap.pop();
-      if (heap.length) {
-        heap[0] = last;
-        let k = 0;
-        for (;;) {
-          const l = 2 * k + 1, r = l + 1;
-          let m = k;
-          if (l < heap.length && heap[l][0] < heap[m][0]) m = l;
-          if (r < heap.length && heap[r][0] < heap[m][0]) m = r;
-          if (m === k) break;
-          [heap[m], heap[k]] = [heap[k], heap[m]];
-          k = m;
-        }
+      const top = vals[0];
+      const f = keys[--size], v = vals[size];
+      let k = 0;
+      for (;;) {
+        const l = 2 * k + 1;
+        if (l >= size) break;
+        const m = l + 1 < size && keys[l + 1] < keys[l] ? l + 1 : l;
+        if (keys[m] >= f) break;
+        keys[k] = keys[m]; vals[k] = vals[m]; k = m;
       }
+      keys[k] = f; vals[k] = v;
       return top;
     };
-    const s = idx(...start), t = idx(...goal);
+    const wet = (r, c) => r >= 0 && r < rows && c >= 0 && c < cols && water[r * cols + c] > 0;
+    const DR = [1, -1, 0, 0, 1, 1, -1, -1], DC = [0, 0, 1, -1, 1, -1, 1, -1];
+    const STEP = [1, 1, 1, 1, Math.SQRT2, Math.SQRT2, Math.SQRT2, Math.SQRT2];
+    const s = start[0] * cols + start[1], t = gr * cols + gc;
     g[s] = 0;
-    push(h(...start), s);
-    const STEPS = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, Math.SQRT2], [1, -1, Math.SQRT2], [-1, 1, Math.SQRT2], [-1, -1, Math.SQRT2]];
-    while (heap.length) {
-      const [, cur] = pop();
+    push(h(start[0], start[1]), s);
+    while (size) {
+      const cur = pop();
       if (cur === t) break;
       if (closed[cur]) continue;
       closed[cur] = 1;
-      const r = Math.floor(cur / nav.cols), c = cur % nav.cols;
-      for (const [dr, dc, cost] of STEPS) {
-        const rr = r + dr, cc = c + dc;
-        if (!isWater(rr, cc)) continue;
+      const r = (cur / cols) | 0, c = cur - r * cols, gcur = g[cur];
+      for (let k = 0; k < 8; k++) {
+        const dr = DR[k], dc = DC[k], rr = r + dr, cc = c + dc;
+        if (!wet(rr, cc)) continue;
         // Don't cut diagonally past a land corner
-        if (dr && dc && (!isWater(r + dr, c) || !isWater(r, c + dc))) continue;
-        const ni = idx(rr, cc);
-        const ng = g[cur] + cost * COST[water[ni]];
+        if (k >= 4 && (!wet(r + dr, c) || !wet(r, c + dc))) continue;
+        const ni = rr * cols + cc;
+        const ng = gcur + STEP[k] * COST[water[ni]];
         if (ng < g[ni]) { g[ni] = ng; came[ni] = cur; push(ng + h(rr, cc), ni); }
       }
     }
     if (g[t] === Infinity) return null;
     const path = [];
-    for (let i = t; i !== -1; i = came[i]) path.push([Math.floor(i / nav.cols), i % nav.cols]);
+    for (let i = t; i !== -1; i = came[i]) path.push([(i / cols) | 0, i % cols]);
     return path.reverse();
   }
 
@@ -265,21 +280,42 @@
   const pad3 = n => String(Math.round(n) % 360).padStart(3, '0');
   const fmtMins = h => { const m = Math.round(h * 60); return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`; };
 
-  async function calculate() {
+  const saveChoice = () => {
     try { localStorage.setItem(ROUTE_KEY, JSON.stringify({ from: fromSel.value, speed: speedIn.value })); } catch { /* storage unavailable */ }
+  };
+  const spinner = text => { result.innerHTML = `<span class="boat-spinner small" aria-hidden="true"></span> ${text}`; };
+
+  // The route on screen, kept so a speed change only redoes the times
+  // (re-routing, and a new GPS fix, on every keystroke froze the screen)
+  let shown = null, calcId = 0;
+
+  async function calculate() {
+    saveChoice();
+    const id = ++calcId;
+    shown = null;
     const to = findPlace(toSel.value);
     if (!to) { result.textContent = ''; svg.innerHTML = ''; return; }
     let from;
     if (fromSel.value === 'gps') {
-      result.innerHTML = '<span class="boat-spinner small" aria-hidden="true"></span> Getting GPS fix…';
+      spinner('Getting GPS fix…');
       const pos = await getPosition(15000);
+      if (id !== calcId) return;
       if (!pos) { result.textContent = '⚠️ GPS unavailable — pick a start place instead, or allow location access (Info tab).'; return; }
       from = { lat: pos.lat, lon: pos.lon, name: 'your position' };
     } else {
       const p = findPlace(fromSel.value);
       from = { lat: p.lat, lon: p.lon, name: p.name };
     }
-    const r = route(from, to);
+    // Let the spinner paint before the search holds the screen
+    spinner('Working out the route…');
+    await new Promise(res => setTimeout(res, 30));
+    if (id !== calcId) return;
+    shown = { from, to, r: route(from, to) };
+    showRoute(true);
+  }
+
+  function showRoute(redraw) {
+    const { from, to, r } = shown;
     const kn = parseFloat(speedIn.value);
     result.replaceChildren();
     if (!r) {
@@ -316,7 +352,7 @@
     const eta = kn > 0 ? new Date(Date.now() + r.nm / kn * 3600000).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false }) : null;
     extra.textContent = `Straight line ${r.straightNm.toFixed(1)} NM${eta ? ` · ETA if leaving now ${eta}` : ''} · keeps 50 m off land and rocks`;
     result.append(big, legs, extra);
-    draw(r, from, to);
+    if (redraw) draw(r, from, to);
   }
 
   function draw(r, from, to) {
@@ -356,7 +392,10 @@
   }
 
   [fromSel, toSel].forEach(s => s.addEventListener('change', calculate));
-  speedIn.addEventListener('input', calculate);
+  speedIn.addEventListener('input', () => {
+    saveChoice();
+    if (shown) showRoute(false); else calculate();
+  });
 
   window.routeForTest = route;
 })();

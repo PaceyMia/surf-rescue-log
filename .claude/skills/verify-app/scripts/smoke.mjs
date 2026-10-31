@@ -489,6 +489,17 @@ await check('job route: Coogee to Ben Buckler by water with time at speed', asyn
   assert(await page.locator('#route-map .m-route').count() === 1, 'route not drawn');
 });
 
+await check('job route: changing the speed updates the times without re-routing', async () => {
+  // The route found above stays on screen; only the times change
+  await page.evaluate(() => { window.__mapNode = document.querySelector('#route-map .m-route'); });
+  await page.fill('#route-speed', '');
+  await page.type('#route-speed', '25');
+  await page.waitForFunction(() => document.getElementById('route-result').textContent.includes('at 25 kn'));
+  assert(await page.evaluate(() => document.querySelector('#route-map .m-route') === window.__mapNode), 'map was redrawn: speed change re-ran the route');
+  await page.fill('#route-speed', '20');
+  await page.waitForFunction(() => document.getElementById('route-result').textContent.includes('at 20 kn'));
+});
+
 await check('job route map shows both place names in full', async () => {
   await pick('from', 'malabar b', 'Malabar Beach');
   await pick('to', 'north cronulla', 'North Cronulla Beach');

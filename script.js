@@ -959,5 +959,12 @@ loadShift();
 if (shift) showLogScreen(); else showStartScreen();
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  // The app opens from the copy on the phone (sw.js); a new version installs
+  // in the background and is used from the next open. A Home Screen app often
+  // resumes instead of reloading, so also check when it comes back on screen.
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    });
+  }).catch(() => {});
 }

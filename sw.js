@@ -1,10 +1,13 @@
 /* ── Surf Patrol Log – sw.js ──
-   Keeps the app's own files on the device so it opens in a dead spot.
-   Network-first: when there's signal you always get the latest version;
-   the cached copy is only used when the network fails. Weather data is
-   not cached here (weather.js keeps its own last-good copy).
+   Keeps the app's own files on the device so it opens straight away at sea.
+   Cache-first: the app always opens from the copy on the phone, even on one
+   bar of signal (network-first waited for the slow network every time).
+   New versions arrive whole: when this file changes (bump CACHE on every app
+   change), the browser installs the new set of files in the background and
+   the next open uses it. Weather data is not cached here (weather.js keeps
+   its own last-good copy).
 */
-const CACHE = 'sr30-shell-v10';
+const CACHE = 'sr30-shell-v11';
 const SHELL = [
   './', 'index.html', 'style.css', 'config.js', 'places.js', 'vocab.js', 'geo.js', 'tide-constants.js', 'tide.js',
   'coast.js', 'geofence.js', 'route.js', 'setup.js', 'script.js', 'weather.js', 'tools.js',
@@ -12,7 +15,10 @@ const SHELL = [
 ];
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache: 'reload' so the new set comes from the server, not a stale HTTP cache
+  event.waitUntil(caches.open(CACHE)
+    .then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', event => {
@@ -27,14 +33,12 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
   event.respondWith(
-    fetch(event.request)
-      .then(res => {
-        const copy = res.clone();
-        caches.open(CACHE).then(c => c.put(event.request, copy));
-        return res;
-      })
-      .catch(() => caches.match(event.request, { ignoreSearch: true })
-        .then(hit => hit || caches.match('index.html')))
+    caches.match(event.request, { ignoreSearch: true }).then(hit => {
+      if (hit) return hit;
+      // Not one of the app's files: network, falling back to the app page
+      return fetch(event.request).catch(() =>
+        event.request.mode === 'navigate' ? caches.match('index.html') : Response.error());
+    })
   );
 });
 
