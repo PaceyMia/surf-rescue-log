@@ -72,8 +72,8 @@ export const SCREENS = [
         use: 'For a person overboard, a sighting or a turning point. Edit the entry afterwards to add detail.' },
       { selector: '#dictate-btn', title: 'Log Entry (microphone)',
         what: 'Starts and stops a voice entry.',
-        use: 'Tap, speak (pauses are fine), tap Stop & Save. The mic stays on until Stop is tapped, even if the phone tries to end it.',
-        note: 'Dictation needs mobile signal. If signal drops mid-entry, what was heard is saved and a message says so.' }
+        use: 'Push to talk: tap once and speak after the tone, tap Stop & Save when finished. One tone at the start and one at the end.',
+        note: 'If the phone stops listening by itself after a long pause, what was heard is saved and the button changes to Continue entry for a minute: tap it to keep adding to the same entry. Dictation needs mobile signal.' }
     ]
   },
   {

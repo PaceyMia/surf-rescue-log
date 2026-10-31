@@ -27,23 +27,30 @@ const url = `http://127.0.0.1:${server.address().port}/`;
 // autoEnd() ends the session as the browser would (timeout, screen lock),
 // error(code) fires onerror then onend. __speech.sessions counts start() calls.
 const fakeSpeech = () => {
+  // Behaves like the real API: event.results is the session's full list so far.
+  // sayAndroid(text) mimics Chrome on Android, where each result repeats the
+  // whole phrase so far.
   let active = null;
   class FakeRecognition {
-    start() { window.__speech.sessions++; setTimeout(() => { active = this; this.onstart?.(); }, 0); }
+    start() { window.__speech.sessions++; this.results = []; setTimeout(() => { active = this; this.onstart?.(); }, 0); }
     stop() { setTimeout(() => this._end(), 0); }
     _end() { if (active === this) active = null; this.onend?.(); }
   }
   window.SpeechRecognition = FakeRecognition;
   window.webkitSpeechRecognition = FakeRecognition;
-  const emit = (text, isFinal) => {
-    const result = Object.assign([{ transcript: text, confidence: 1 }], { isFinal });
-    active?.onresult?.({ resultIndex: 0, results: [result] });
+  const push = (text, isFinal) => {
+    if (!active) return;
+    const r = active.results;
+    if (r.length && !r[r.length - 1].isFinal) r.pop(); // interim is replaced
+    r.push(Object.assign([{ transcript: text, confidence: 1 }], { isFinal }));
+    active.onresult?.({ resultIndex: r.length - 1, results: r });
   };
   window.__speech = {
     sessions: 0,
     get active() { return !!active; },
-    say: text => emit(text, true),
-    interim: text => emit(text, false),
+    say: text => push(text, true),
+    interim: text => push(text, false),
+    sayAndroid: words => { let so = ''; words.split(' ').forEach(w => { so = so ? `${so} ${w}` : w; push(so, true); }); },
     autoEnd() { active?._end(); },
     error(code) { const a = active; a?.onerror?.({ error: code }); a?._end(); },
   };
@@ -192,16 +199,35 @@ await check('live box shows words as they are heard', async () => {
   assert(!(await page.isVisible('#live-box')), 'live box still visible after stop');
 });
 
-await check('mic stays live when the browser ends the session itself', async () => {
+await check('Android-style repeated results make one clean sentence', async () => {
+  await startRec();
+  await page.evaluate(() => window.__speech.sayAndroid('departing botany bay for ben buckler'));
+  await stopRec();
+  const texts = await entryTexts();
+  assert(texts.at(-1) === 'Departing Botany Bay for Ben Buckler.', `got ${JSON.stringify(texts.at(-1))}`);
+});
+
+await check('push to talk: no automatic restart when the phone stops listening', async () => {
   await startRec();
   const before = await page.evaluate(() => window.__speech.sessions);
   await page.evaluate(() => { window.__speech.say('kayaker heading south'); window.__speech.autoEnd(); });
-  await page.waitForFunction(b => window.__speech.sessions > b && window.__speech.active, before);
-  assert(await page.evaluate(() => document.getElementById('dictate-btn').classList.contains('listening')), 'stopped listening');
+  await page.waitForFunction(() => !document.getElementById('dictate-btn').classList.contains('listening'));
+  await page.waitForTimeout(600);
+  assert(await page.evaluate(() => window.__speech.sessions) === before, 'session was restarted (would beep on Android)');
+  assert((await entryTexts()).includes('Kayaker heading south.'), 'words not saved');
+  assert((await page.textContent('#dictate-btn')).includes('Continue entry'), 'no Continue entry offer');
+});
+
+await check('Continue entry adds to the same entry', async () => {
+  const count = (await entryTexts()).length;
+  await page.click('#dictate-btn');
+  await page.waitForFunction(() => window.__speech.active);
   await page.evaluate(() => window.__speech.say('towards cape banks'));
   await stopRec();
   const texts = await entryTexts();
+  assert(texts.length === count, `a new entry was created (${count} → ${texts.length})`);
   assert(texts.includes('Kayaker heading south towards Cape Banks.'), `got ${JSON.stringify(texts)}`);
+  assert((await page.textContent('#dictate-btn')).includes('Log Entry'), 'button did not return to Log Entry');
 });
 
 await check('keeps transcript when the mic is blocked mid-recording', async () => {

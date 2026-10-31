@@ -32,7 +32,7 @@ Storage keys: `surfPatrolLogs`, `surfPatrolShift`, `surfPatrolCrewNames`, `surfP
 When adding a file the app loads, add it to `SHELL` in `sw.js` and bump `CACHE`.
 
 ## Recording behaviour
-The mic stays live until Stop is tapped. If the browser ends the session (silence, signal drop) it restarts and keeps the transcript; fatal errors (`not-allowed`, `audio-capture`) or >12 restarts in 30 s save what was heard and stop. Entries are timestamped at the start of recording and get a GPS position if available.
+Push to talk: one tap starts one recognition session, the next tap stops and saves it. Never restart sessions automatically — on Android every start plays the phone's tone and re-sends earlier words. The transcript is rebuilt from the session's full `event.results` on every event and merged so Android's cumulative results ("departing", "departing Botany", …) don't repeat. If the phone ends the session itself (long silence), what was heard is saved and the button offers "Continue entry" for 60 s, which appends to that same entry. Entries are timestamped at the start of recording and get a GPS position if available.
 
 ## Known gaps (Oct 2026)
 - Dictation needs signal (Chrome/Safari speech is server-based). The app itself opens offline.
