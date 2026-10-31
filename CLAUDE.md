@@ -26,16 +26,16 @@ Mobile-first voice log and toolkit for the Surf Rescue 30 offshore rescue boat (
 | `geofence.js` | 2 NM boundary alarm (watchPosition) and SVG map |
 | `route.js` | Job route by water (A* on the navigable grid; 50 m off land, 25 m in estuaries), searchable From/To pickers, courses, time at speed, route map |
 | `setup.js` | Phone setup check: mic / location / notification permissions with one-tap request |
-| `weather.js` | Sydney-only warnings (badge + Log banner) and Sydney Coast BOM forecast from `weather.json`; Open-Meteo now tiles, tide ("Near high/low" within the estimate's margin), 24 h strip; sun/first/last light computed locally; wind units (kn/km/h) remembered; Windy wind/waves/radar maps loaded only when scrolled to, one iframe per layer; data prefetched at start-up and a loading screen until it's in |
+| `weather.js` | Sydney-only warnings (badge + Log banner) and Sydney Coast BOM forecast from `weather.json`; Open-Meteo now tiles, tide ("Near high/low" within the estimate's margin), 24 h strip; sun/first/last light computed locally; wind units (kn/km/h) remembered; one Windy map (wind/waves/radar pills change its layer, full-screen button for pinch zoom) loaded only when scrolled to; data prefetched at start-up and a loading screen until it's in |
 | `tools.js` | Speed/distance/time calculator, fuel range (rule of thirds) |
 | `config.js` | `dataUrl` (raw URL of `weather.json`), forecast point |
-| `sw.js` / `manifest.webmanifest` / `icons/` | App shell cache (network-first), Home Screen install |
+| `sw.js` / `manifest.webmanifest` / `icons/` | App shell cache (cache-first, so it opens instantly on one bar; a new version installs in the background and is used from the next open), Home Screen install |
 | `.github/workflows/weather-data.yml` + `data-scripts/fetch_weather.mjs` | Every 30 min: BOM coastal/local waters forecasts and current NSW warning products via BOM's anonymous FTP, WillyWeather via API (repo secret `WW_API_KEY`), published to the `weather-data` branch |
 | `data-scripts/` | Regenerate `places.js` and `coast.js` from OpenStreetMap; build `weather.json` |
 
 Storage keys: `surfPatrolLogs`, `surfPatrolShift`, `surfPatrolCrewNames`, `surfPatrolDraft`, `surfPatrolTab`, `surfPatrolBoundaryAlarm`, `surfPatrolFuel`, `surfPatrolUnits`, `surfPatrolRoute`, `surfPatrolWx` / `surfPatrolFeed` (weather caches).
 
-When adding a file the app loads, add it to `SHELL` in `sw.js` and bump `CACHE`.
+**Bump `CACHE` in `sw.js` on every change to an app file** — the app opens from the phone's copy, so without a bump the change never reaches crew phones. When adding a file the app loads, also add it to `SHELL`.
 
 Never use `confirm()`/`alert()`: browsers label them with the site address. Use `askConfirm()` (in-app dialog) or a status message.
 

@@ -149,6 +149,7 @@ export const SCREENS = [
         use: 'Remembered on the device.' },
       { selector: '#route-result', title: 'Route result',
         what: 'Distance by water, time at your speed, numbered courses (degrees true and distance for each leg), straight-line distance and ETA if leaving now.',
+        use: 'A spinner shows while the route is worked out (under a second). Changing the speed updates the times straight away without working out the route again.',
         note: 'Routes go around headlands and rocks, keep mid-channel and follow charted channels where mapped. There is no depth data, so check the chart in shallow water.' },
       { selector: '#route-map', title: 'Route map',
         what: 'The route drawn over the coastline: green start, red job location, dashed red track. Each place name sits on whichever side of its dot has room, so it is never cut off.' },

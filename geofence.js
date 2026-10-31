@@ -129,7 +129,7 @@
     bar.className = `boundary-${level}`;
     bar.textContent = (level === 'beyond' ? '🚨 ' : level === 'warning' ? '⚠️ ' : '🛟 ') + text;
     readout.textContent = text;
-    drawMap();
+    drawBoat();
   }
 
   async function keepAwake() {
@@ -198,8 +198,12 @@
   const LABELS = ['South Head', 'Bondi', 'Coogee', 'Maroubra', 'Malabar', 'Cape Banks', 'Cape Solander', 'Wedding Cake Island']
     .map(n => PLACES.find(p => p.name === n)).filter(p => p && p.lat != null);
 
+  // The coastline and lines are drawn once; each GPS fix only moves the boat
+  // (redrawing the whole map about once a second cost battery on long patrols)
+  let mapDrawn = false;
   function drawMap() {
     if (!mapSvg || mapSvg.closest('[hidden]')) return;
+    if (mapDrawn) { drawBoat(); return; }
     let svg = `<rect width="${W}" height="${H}" class="m-sea"/>`;
     COAST.mapCoast.forEach(l => { svg += `<path d="${path(l)}" class="m-coast"/>`; });
     COAST.mapOutcrops.forEach(l => { svg += `<path d="${path(l)}" class="m-outcrop"/>`; });
@@ -211,11 +215,22 @@
     });
     svg += `<text x="${W - 6}" y="14" class="m-key m-key-limit" text-anchor="end">— 2 NM limit</text>` +
            `<text x="${W - 6}" y="28" class="m-key m-key-warn" text-anchor="end">- - 500 m warning</text>`;
-    if (last && last.lat >= VIEW.latMin && last.lat <= VIEW.latMax && last.lon >= VIEW.lonMin && last.lon <= VIEW.lonMax) {
-      svg += `<circle cx="${sx(last.lon)}" cy="${sy(last.lat)}" r="7" class="m-boat m-boat-${state}"/>`;
-    }
+    svg += `<circle r="7" class="m-boat" visibility="hidden"/>`;
     mapSvg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     mapSvg.innerHTML = svg;
+    mapDrawn = true;
+    drawBoat();
+  }
+
+  function drawBoat() {
+    if (!mapDrawn) { drawMap(); return; }
+    const boat = mapSvg.querySelector('.m-boat');
+    const onMap = last && last.lat >= VIEW.latMin && last.lat <= VIEW.latMax && last.lon >= VIEW.lonMin && last.lon <= VIEW.lonMax;
+    boat.setAttribute('visibility', onMap ? 'visible' : 'hidden');
+    if (!onMap) return;
+    boat.setAttribute('cx', sx(last.lon));
+    boat.setAttribute('cy', sy(last.lat));
+    boat.setAttribute('class', `m-boat m-boat-${state}`);
   }
 
   document.addEventListener('tabshown', e => { if (e.detail === 'tools') drawMap(); });
