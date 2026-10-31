@@ -1309,3 +1309,40 @@ button.warning-item { width: 100%; border: none; text-align: left; font: inherit
 #confirm-dialog::backdrop { background-color: rgba(0, 20, 40, 0.7); }
 #confirm-text { font-size: 1.05rem; font-weight: 700; line-height: 1.4; }
 #confirm-ok { background-color: var(--red); border-color: var(--red); color: var(--white); }
+
+/* ── Tide tile: each high/low and its time stay on one line ── */
+.tile-line { display: block; white-space: nowrap; }
+
+/* ── Live map: spinner while a layer loads ── */
+.map-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  border-radius: 8px;
+  background: rgba(232, 240, 250, 0.85);
+  color: var(--navy);
+  font-weight: 800;
+  z-index: 3;
+}
+.map-loading[hidden] { display: none; }
+#map-full-btn { width: 100%; margin-top: 0.5rem; }
+
+/* ── Live map full screen: every gesture goes to the map ── */
+body.no-scroll { overflow: hidden; }
+.card.map-full {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  margin: 0;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  padding: calc(env(safe-area-inset-top, 0px) + 0.75rem) max(0.75rem, env(safe-area-inset-right, 0px))
+           calc(env(safe-area-inset-bottom, 0px) + 0.75rem) max(0.75rem, env(safe-area-inset-left, 0px));
+}
+.card.map-full #map-wrap { flex: 1; min-height: 0; }
+.card.map-full #map-wrap iframe { height: 100%; }
+.card.map-full .radar-dot { top: 50%; }

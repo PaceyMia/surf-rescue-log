@@ -344,7 +344,18 @@ await check('weather tab: warnings, now tiles, tide, sun and first/last light', 
   }
   assert(/First \/ Last Light\s*0[45]:\d\d · (19|20):\d\d/.test(now), 'first/last light times');
   assert(/(Rising|Falling|Near high|Near low)/.test(now), 'tide direction missing');
-  assert(/High \d\d:\d\d \(\d\.\d m\) · Low \d\d:\d\d \(\d\.\d m\)|Low \d\d:\d\d \(\d\.\d m\)/.test(now), 'tide times should be 24-hour with heights');
+  // Tide: next turns in time order, each "High/Low hh:mm (x.x m)" on its own line
+  const tideLines = await page.$$eval('.tile-line', els => els.map(e => [e.textContent, e.getBoundingClientRect().height]));
+  assert(tideLines.length >= 1 && tideLines.every(([t]) => /^(High|Low) \d\d:\d\d \(\d\.\d m\)$/.test(t)), `tide lines ${JSON.stringify(tideLines)}`);
+  assert(tideLines.every(([, h]) => h < 20), 'a tide line wrapped');
+  const tideTimes = tideLines.map(([t]) => t.match(/\d\d:\d\d/)[0]);
+  const expected = await page.evaluate(() => {
+    const now = Date.now(), next = Tide.turns(now, now + 30 * 3600000);
+    const hi = next.find(e => e.type === 'high'), lo = next.find(e => e.type === 'low');
+    return [hi, lo].filter(Boolean).sort((a, b) => a.at - b.at)
+      .map(e => e.at.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Australia/Sydney' }));
+  });
+  assert(JSON.stringify(tideTimes) === JSON.stringify(expected), `tide order ${tideTimes} expected ${expected}`);
   assert((await page.textContent('#bom-body')).includes('Strong Wind Warning for Saturday'), 'BOM forecast not shown');
   assert(!(await page.textContent('#bom-body')).includes('Illawarra'), 'BOM forecast should be Sydney Coast only');
 });
@@ -416,15 +427,22 @@ await check('wind units switch to km/h and are remembered', async () => {
   await page.click('#wind-unit label:has-text("knots")');
 });
 
-await check('live map keeps each layer loaded; Windy radar, no satellite', async () => {
+await check('live map: one Windy map whose layer follows the pills; full screen', async () => {
   assert(await page.locator('#map-pills input[value="satellite"]').count() === 0, 'satellite still there');
-  await page.click('#map-pills label:has-text("Waves")');
-  await page.click('#map-pills label:has-text("Radar")');
-  const frames = await page.$$eval('#map-wrap iframe', fs => fs.map(f => ({ src: f.src, hidden: f.hidden })));
-  // Layers load when first shown (the map itself waits until it's scrolled to)
-  assert(frames.length >= 2, `expected the shown layers to stay loaded, got ${frames.length}`);
-  assert(frames.filter(f => !f.hidden).length === 1 && frames.find(f => !f.hidden).src.includes('embed.windy.com') && frames.find(f => !f.hidden).src.includes('overlay=radar'), 'Windy radar not shown');
-  assert(frames.some(f => f.src.includes('overlay=waves')), 'waves layer missing');
+  assert((await page.textContent('#map-pills')).includes('Radar') && !(await page.textContent('#map-pills')).includes('Rain radar'), 'pill should say Radar');
+  const srcs = [];
+  for (const [label, layer] of [['Waves', 'waves'], ['Radar', 'radar'], ['Wind', 'wind'], ['Waves', 'waves']]) {
+    await page.click(`#map-pills label:has-text("${label}")`);
+    const frames = await page.$$eval('#map-wrap iframe', fs => fs.map(f => f.src));
+    assert(frames.length === 1, `expected one map, got ${frames.length}`);
+    assert(frames[0].includes('embed.windy.com') && frames[0].includes(`overlay=${layer}`), `${label} pill showed ${frames[0]}`);
+    srcs.push(frames[0]);
+  }
+  await page.click('#map-full-btn');
+  const box = await page.$eval('#map-wrap iframe', f => f.getBoundingClientRect().toJSON());
+  assert(box.height > 600 && box.width > 350, `full screen map ${JSON.stringify(box)}`);
+  await page.click('#map-full-btn');
+  assert(await page.$eval('#map-wrap iframe', f => f.getBoundingClientRect().height) < 450, 'map did not leave full screen');
 });
 
 await check('header scrolls away, tabs stay pinned', async () => {

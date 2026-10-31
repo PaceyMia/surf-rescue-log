@@ -156,10 +156,12 @@
     return '#FF5A4E';
   }
 
+  // small: text, or a list of lines (each kept on one line)
   function tile(label, big, small, extraClass = '') {
     const t = el('div', `tile ${extraClass}`);
     t.append(el('span', 'tile-label', label), el('span', 'tile-big', big));
-    if (small) t.append(el('span', 'tile-small', small));
+    if (Array.isArray(small)) small.forEach(line => t.append(el('span', 'tile-small tile-line', line)));
+    else if (small) t.append(el('span', 'tile-small', small));
     return t;
   }
 
@@ -184,8 +186,9 @@
         `${fmt(m.swell_wave_period[si])} s period`),
       tide
         ? tile('Tide', tideHeadline(tide),
-            [tide.nextHigh && `High ${hhmm(tide.nextHigh.at)} (${fmt(tide.nextHigh.height, 1)} m)`,
-             tide.nextLow && `Low ${hhmm(tide.nextLow.at)} (${fmt(tide.nextLow.height, 1)} m)`].filter(Boolean).join(' · '))
+            // Next turn first, each high/low with its time on its own line
+            [tide.nextHigh, tide.nextLow].filter(Boolean).sort((a, b) => a.at - b.at)
+              .map(e => `${e.type === 'high' ? 'High' : 'Low'} ${hhmm(e.at)} (${fmt(e.height, 1)} m)`))
         : tile('Tide', '–', 'no tide data'),
       tile('Water', `${fmt(m.sea_surface_temperature[si], 1)} °C`, c.temperature_2m != null ? `air ${fmt(c.temperature_2m)} °C` : ''),
       tile('Sunrise / Sunset', `${sun.sunrise ? hhmm(sun.sunrise) : '–'} · ${sun.sunset ? hhmm(sun.sunset) : '–'}`, ''),
@@ -375,8 +378,14 @@
       });
   }
 
-  // ── Live maps: one iframe per layer, kept loaded so switching is instant ──
-  const frames = {};
+  // ── Live map: one Windy iframe; the pills change its layer ─────────
+  // One map at a time: several Windy maps alive at once ran phones short of
+  // memory (pinch zoom stopped responding) and they share Windy's saved
+  // settings, so Waves sometimes showed the wind layer.
+  let frame = null, frameLayer = '';
+  const mapLoading = el('div', 'map-loading');
+  mapLoading.hidden = true;
+  mapLoading.innerHTML = '<span class="boat-spinner small" aria-hidden="true"></span> Loading map…';
 
   function mapSrc(layer) {
     // Radar is centred on Malabar (the dot overlay marks it). Wind/waves centre
@@ -389,37 +398,55 @@
   }
 
   function showMap(layer) {
-    Object.entries(frames).forEach(([k, f]) => { f.hidden = k !== layer; });
-    if (!frames[layer]) {
-      const f = el('iframe');
-      f.title = `${layer} map`;
-      f.src = mapSrc(layer);
-      f.setAttribute('allow', 'fullscreen');
-      frames[layer] = f;
-      mapWrap.append(f);
+    if (!frame) {
+      frame = el('iframe');
+      frame.setAttribute('allow', 'fullscreen');
+      frame.addEventListener('load', () => { mapLoading.hidden = true; });
+      mapWrap.prepend(frame);
+    }
+    if (frameLayer !== layer) {
+      frameLayer = layer;
+      frame.title = `${layer} map`;
+      mapLoading.hidden = false;
+      frame.src = mapSrc(layer);
+      // Never leave the spinner up if the load event goes missing
+      setTimeout(() => { mapLoading.hidden = true; }, 10000);
     }
     // White dot = Malabar on the radar. It's only right while the map hasn't
     // been moved, so it hides once the map is touched (the page loses focus).
     radarDot.hidden = layer !== 'radar';
     mapCredit.textContent = layer === 'radar'
-      ? 'Map: Windy.com — white dot is Malabar; tap ▶ on the map to play the last hour of rain radar'
+      ? 'Map: Windy.com — white dot is Malabar; tap ▶ on the map to play the last hour of radar'
       : 'Map: Windy.com';
   }
   const radarDot = el('div', 'radar-dot');
   radarDot.hidden = true;
   radarDot.setAttribute('aria-label', 'Malabar');
   radarDot.append(el('span', 'radar-dot-label', 'Malabar'));
-  mapWrap.append(radarDot);
+  mapWrap.append(radarDot, mapLoading);
   window.addEventListener('blur', () => {
     if (document.activeElement && document.activeElement.tagName === 'IFRAME') radarDot.hidden = true;
   });
 
   mapPills.addEventListener('change', e => showMap(e.target.value));
 
+  // Full screen: on a scrolling page the phone sometimes takes a pinch as a
+  // page gesture; with the map filling the screen every gesture goes to it
+  const mapCard = mapWrap.closest('.card'), fullBtn = $('map-full-btn');
+  function setMapFull(on) {
+    mapCard.classList.toggle('map-full', on);
+    document.body.classList.toggle('no-scroll', on);
+    fullBtn.setAttribute('aria-pressed', String(on));
+    fullBtn.textContent = on ? '✕ Close full screen' : '⛶ Full screen map';
+    if (on && !frame) showMap(mapPills.querySelector('input:checked').value);
+  }
+  fullBtn.addEventListener('click', () => setMapFull(!mapCard.classList.contains('map-full')));
+  document.addEventListener('tabshown', e => { if (e.detail !== 'weather') setMapFull(false); });
+
   // Windy is heavy (it slowed the whole tab), so only load it when the map
   // card scrolls into view
   const mapObserver = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
-    if (entries.some(e => e.isIntersecting) && !Object.keys(frames).length) {
+    if (entries.some(e => e.isIntersecting) && !frame) {
       showMap(mapPills.querySelector('input:checked').value);
       mapObserver.disconnect();
     }
@@ -432,7 +459,7 @@
     if (panel.classList.contains('is-loading')) $('eight-motion')?.beginElement?.();
     load();
     if (mapObserver) mapObserver.observe(mapWrap);
-    else if (!Object.keys(frames).length) showMap(mapPills.querySelector('input:checked').value);
+    else if (!frame) showMap(mapPills.querySelector('input:checked').value);
   });
   warnBanner.addEventListener('click', () => document.querySelector('[data-tab="weather"]').click());
 
