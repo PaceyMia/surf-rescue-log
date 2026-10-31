@@ -14,7 +14,7 @@
   --navy:   #003366;
   --yellow: #FFD700;
   --white:  #FFFFFF;
-  --green:  #00AA55;
+  --green:  #007A3D;            /* white text 5.45:1 (the old #00AA55 was 3.05:1) */
   --red:    #CC2200;
   --light-bg: #E8F0F8;
   --entry-bg: #FFFFFF;
@@ -269,7 +269,7 @@ footer {
   border: none;
   border-radius: 14px;
   cursor: pointer;
-  box-shadow: 0 6px 0 #007A3D;
+  box-shadow: 0 6px 0 #004D26;
   transition: background-color 0.15s, transform 0.1s, box-shadow 0.1s;
   letter-spacing: 0.02em;
   touch-action: manipulation;
@@ -277,7 +277,7 @@ footer {
 
 #dictate-btn:active {
   transform: translateY(4px);
-  box-shadow: 0 2px 0 #007A3D;
+  box-shadow: 0 2px 0 #004D26;
 }
 
 #dictate-btn.listening {
@@ -438,13 +438,13 @@ footer {
   border: none;
   border-radius: 14px;
   cursor: pointer;
-  box-shadow: 0 6px 0 #007A3D;
+  box-shadow: 0 6px 0 #004D26;
   touch-action: manipulation;
 }
 
 #start-btn:active {
   transform: translateY(4px);
-  box-shadow: 0 2px 0 #007A3D;
+  box-shadow: 0 2px 0 #004D26;
 }
 
 /* ── Responsive: large tablets / desktops ── */
@@ -844,6 +844,8 @@ details.card:not([open]) summary {
   touch-action: manipulation;
 }
 
+#sdt-clear { border-style: solid; }
+
 .start-group .ghost-btn,
 .ghost-btn.dark {
   border-color: var(--navy);
@@ -1100,13 +1102,12 @@ details.card:not([open]) summary {
 .legs { margin: 0.3rem 0 0.2rem 1.3rem; font-weight: 700; }
 .legs li + li { margin-top: 0.1rem; }
 
-/* Warning count sits on the tab corner so the label never wraps */
+/* Warning count sits just after the label (raised), never over it */
 #tabs [role="tab"] { position: relative; white-space: nowrap; }
 #warn-badge {
-  position: absolute;
-  top: 2px;
-  right: 0;
-  margin: 0;
+  position: relative;
+  top: -0.55rem;
+  margin-left: 0.15rem;
   min-width: 1.2rem;
   line-height: 1.2rem;
   padding: 0 0.25rem;
