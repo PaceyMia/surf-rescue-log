@@ -7,14 +7,16 @@ set -euo pipefail
 OUT="${1:-osm}"
 mkdir -p "$OUT"
 BBOX="-34.20,151.00,-33.76,151.36"
-ENDPOINTS=(https://overpass-api.de/api/interpreter https://overpass.private.coffee/api/interpreter https://overpass.kumi.systems/api/interpreter)
+ENDPOINTS=(https://overpass-api.de/api/interpreter https://overpass.kumi.systems/api/interpreter https://overpass.private.coffee/api/interpreter)
+# Overpass asks clients to identify themselves; anonymous requests get 406
+UA="surf-rescue-log/1.0 (+https://github.com/PaceyMia/surf-rescue-log)"
 
 # query <file> <overpass-ql>: try each server until one returns valid JSON
 query() {
   local file="$1" ql="$2"
   for api in "${ENDPOINTS[@]}"; do
     for attempt in 1 2; do
-      if curl -sS -m 300 --data-urlencode "data=$ql" "$api" -o "$file" &&
+      if curl -sS -m 300 -A "$UA" --data-urlencode "data=$ql" "$api" -o "$file" &&
          python3 -c "import json,sys; json.load(open(sys.argv[1]))['elements']" "$file" 2>/dev/null; then
         echo "ok: $api → $file"; return 0
       fi
@@ -49,13 +51,14 @@ out center tags;"
 
 # Nautical chart data (OpenSeaMap tags): fairways, recommended tracks and
 # lateral marks, used to keep routes in the channel
+# Optional: a slow or failed seamark download mustn't lose the rest
 query "$OUT/seamarks.json" "[out:json][timeout:240];
 (
   way[\"seamark:type\"~\"^(fairway|recommended_track|navigation_line|dredged_area)$\"]($BBOX);
   relation[\"seamark:type\"~\"^(fairway|dredged_area)$\"]($BBOX);
   node[\"seamark:type\"~\"^(buoy_lateral|beacon_lateral|buoy_safe_water|beacon_cardinal|buoy_cardinal)$\"]($BBOX);
 );
-out geom;"
+out geom;" || echo '{"elements":[]}' > "$OUT/seamarks.json"
 
 # Shape features into the format build_coast.py expects
 python3 - "$OUT" <<'PY'
