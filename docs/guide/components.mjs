@@ -1,0 +1,203 @@
+// What the app guide says about each component. One entry per numbered
+// marker; `selector` is measured on the live app to place the marker.
+// Keep this in step with the app: when a component changes, update its text
+// here and re-run `node docs/guide/build-guide.mjs`, then republish.
+//
+// Fields: what (what it is), use (how the crew use it), data (where its
+// information comes from), note (status, limits, open questions).
+
+export const SCREENS = [
+  {
+    id: 'start',
+    title: 'Start of patrol',
+    blurb: 'Shown once when a patrol begins, and again whenever someone taps the crew bar to make a change. After that the app opens straight to the log until New Patrol is tapped.',
+    components: [
+      { selector: '#start-screen .start-group:nth-of-type(1)', title: 'Duty',
+        what: 'Patrol, Training or Other, matching the Duty line on the paper Patrol Operations Log.',
+        use: 'Patrol is already selected. Tap Training or Other; Other opens a box to describe the duty and must be filled in.',
+        data: 'Saved on the device with the patrol.' },
+      { selector: '#patrol-date', title: 'Date',
+        what: 'The patrol date, defaulting to today.',
+        use: 'Change it only when logging a patrol after the fact. Times on and off are not entered here; they are filled in afterwards.',
+        data: 'The phone\'s local date (Sydney time).' },
+      { selector: '#crew-skipper', title: 'Skipper (S) and Driver (D)',
+        what: 'The two required crew, using the award codes from the paper form.',
+        use: 'Type a name or pick one the phone remembers from earlier patrols.',
+        data: 'Names are remembered on this device only.' },
+      { selector: '#crew-extras', title: 'Crew (C)',
+        what: 'Optional crew rows: three to start, and as many more as needed.',
+        use: 'Tap ✕ to remove an empty row. Mid-patrol the button reads Log off and records the time that person left.',
+        note: 'Crew changes are written into the log automatically, so the report shows who was on board when.' },
+      { selector: '#add-crew-btn', title: '+ Add crew',
+        what: 'Adds another crew row.',
+        use: 'Use it for extra crew or a replacement joining mid-patrol.' },
+      { selector: '#start-btn', title: 'Start Patrol',
+        what: 'Saves the duty, date and crew and opens the log.',
+        use: 'If skipper or driver is missing, the app says what to fill in and highlights it.' }
+    ]
+  },
+  {
+    id: 'log',
+    title: 'Log',
+    blurb: 'The main screen. The red and yellow header scrolls away; the blue tabs and the 2 NM bar stay pinned at the top, and the microphone stays at the bottom.',
+    components: [
+      { selector: '#tabs', title: 'Tabs',
+        what: 'Log, Weather, Tools and Info. They stay pinned while the page scrolls.',
+        use: 'The red number on Weather is the count of current BOM warnings for Sydney waters.',
+        note: 'The app reopens on whichever tab was last used.' },
+      { selector: '#boundary-bar', title: '2 NM boundary bar',
+        what: 'Live distance from the nearest land, island, rock platform or reef, and how far inside (or beyond) the 2 NM limit the boat is.',
+        use: 'Green inside the limit, yellow within 500 m of it, flashing red beyond it. Tap it to open the boundary map. Turned on in Tools.',
+        data: 'Phone GPS against OpenStreetMap coastline and outcrops.',
+        note: 'Works only while the app is open on screen; web apps get no GPS in the background. An aid only: the plotter is the authority.' },
+      { selector: '#new-patrol-btn', title: 'New Patrol',
+        what: 'Clears the log and crew and goes back to the start screen.',
+        use: 'Asks for confirmation first. Send the End of Shift report before using it.' },
+      { selector: '#report-btn', title: 'End of Shift',
+        what: 'Builds the shift report: duty, date, crew (including who logged off and when), every entry with its time and position.',
+        use: 'Opens the phone\'s share sheet (email, Notes, Messages…). On a computer it downloads a text file.' },
+      { selector: '#warning-banner', title: 'Warning banner',
+        what: 'The first current BOM warning for Sydney waters, and how many more there are.',
+        use: 'Tap it to open the Weather tab.',
+        data: 'BOM warnings, refreshed every 30 minutes.' },
+      { selector: '#shift-summary', title: 'Crew bar',
+        what: 'Duty, date and crew for this patrol.',
+        use: 'Tap it to correct details, log a crew member off or add someone. Entries are kept.' },
+      { selector: '.log-entry', title: 'Log entry',
+        what: 'One observation: time it was started, the words, and the position with the nearest landmark (for example "0.2 NM 096°T from Boora Point").',
+        use: 'Tap to edit or delete. Swipe sideways also deletes. Entries are saved instantly and survive the app closing.',
+        data: 'Speech to text with local place names, marine terms and 24-hour times corrected; phone GPS.' },
+      { selector: '#mark-btn', title: 'Mark',
+        what: 'Logs the current GPS position immediately, with no speaking.',
+        use: 'For a person overboard, a sighting or a turning point. Edit the entry afterwards to add detail.' },
+      { selector: '#dictate-btn', title: 'Log Entry (microphone)',
+        what: 'Starts and stops a voice entry.',
+        use: 'Tap, speak (pauses are fine), tap Stop & Save. The mic stays on until Stop is tapped, even if the phone tries to end it.',
+        note: 'Dictation needs mobile signal. If signal drops mid-entry, what was heard is saved and a message says so.' }
+    ]
+  },
+  {
+    id: 'recording',
+    title: 'Recording a voice entry',
+    blurb: 'What the bottom of the Log looks like while the mic is on.',
+    components: [
+      { selector: '#live-box', title: 'Live box',
+        what: 'Shows the words as they are heard, a LIVE marker and a timer.',
+        use: 'Grey words are still being worked out; they firm up as you speak. Check them before tapping Stop.',
+        note: 'The screen is kept awake while recording.' },
+      { selector: '#dictate-btn', title: 'Stop & Save Entry',
+        what: 'Finishes the entry and saves it with the time recording started and the GPS position.' }
+    ]
+  },
+  {
+    id: 'weather',
+    title: 'Weather',
+    blurb: 'Conditions off Malabar, BOM warnings and the official BOM marine forecast, all inside the app.',
+    components: [
+      { selector: '.unit-row', title: 'Wind speed units',
+        what: 'Knots or km/h. The selected one is filled yellow with a tick.',
+        use: 'Each phone remembers its own choice. Applies to the tiles, the 24-hour strip, observed wind and the Windy map.' },
+      { selector: '#warnings-card', title: 'Warnings',
+        what: 'Current BOM warnings that cover Sydney Coast, Sydney Enclosed Waters or the Illawarra: strong wind, gale, hazardous surf, and severe weather for Sydney.',
+        use: 'Collapsed to one line to save room. Tap to open; tap a warning to jump to its full details at the bottom of the tab.',
+        data: 'BOM via its public FTP service, fetched every 30 minutes by a GitHub job.',
+        note: 'If there is no signal, the last saved copy is shown with its age.' },
+      { selector: '#wx-now .tile:nth-child(1)', title: 'Wind',
+        what: 'Wind speed and direction now, with gusts. Direction is where it comes from.',
+        data: 'Open-Meteo weather model (free, no account).' },
+      { selector: '#wx-now .tile:nth-child(2)', title: 'Swell',
+        what: 'Ocean swell height, direction and period (seconds between waves).',
+        data: 'Open-Meteo marine model.' },
+      { selector: '#wx-now .tile:nth-child(3)', title: 'Tide',
+        what: 'Whether the tide is rising or falling, and the next high and low.',
+        data: 'WillyWeather tide predictions once the WW_API_KEY secret is added; until then an Open-Meteo sea-level estimate.',
+        note: 'The estimate can be 20–40 minutes out.' },
+      { selector: '#wx-now .tile:nth-child(4)', title: 'Water',
+        what: 'Sea surface temperature, with air temperature.' },
+      { selector: '#wx-now .tile:nth-child(5)', title: 'Sunrise · Sunset',
+        what: 'Calculated on the phone for Malabar, so it works without signal.' },
+      { selector: '#wx-now .tile:nth-child(6)', title: 'First light · Last light',
+        what: 'Civil twilight: when it is light enough to work without lights.',
+        data: 'Calculated on the phone.' },
+      { selector: '#wx-strip', title: 'Next 24 hours',
+        what: 'Hour-by-hour strip: sky, temperature, rain, wind and gusts (coloured by strength), wind direction arrows, swell height, period and direction, and tide direction.',
+        use: 'Swipe sideways for later hours. The outlined column is now; a thick line marks midnight.' },
+      { selector: '#map-pills', title: 'Live map',
+        what: 'Windy map with Wind, Waves and Rain radar layers, centred on Malabar.',
+        use: 'Each layer stays loaded, so switching is instant. On Rain radar, tap ▶ to play the last hour.',
+        note: 'Windy\'s free embed has no autoplay setting.' },
+      { selector: '#bom-card', title: 'BOM Marine Forecast',
+        what: 'The official BOM forecast for Sydney Coast, Illawarra Coast and Sydney Enclosed Waters: winds, seas, swell, weather and cautions for today and tomorrow.',
+        data: 'BOM coastal and local waters forecasts (FTP), every 30 minutes.' },
+      { selector: '#warn-details-card', title: 'Warning details',
+        what: 'The full text of each warning: the situation, which coasts it covers and BOM\'s advice, with a link to the warning on the BOM website.',
+        use: 'Reached by tapping a warning at the top of the tab.' },
+      { selector: '.source-links', title: 'BOM links',
+        what: 'Links to the full BOM pages for Sydney waters, warnings and the radar loop, for anything not shown in the app.' }
+    ]
+  },
+  {
+    id: 'tools',
+    title: 'Tools',
+    blurb: 'Planning aids for a job. They are aids only; the plotter and charts are the authority.',
+    components: [
+      { selector: '#route-from', title: 'Job Route: From and To',
+        what: 'Pick where you are (current GPS or a named place) and the job location. 254 beaches, bays, points, islands and reefs from Figure Eight Pools to Manly, the harbour\'s eastern bays, Botany Bay to Tom Uglys Bridge and Port Hacking to Grays Point.',
+        data: 'OpenStreetMap names, grouped by area.' },
+      { selector: '#route-speed', title: 'Speed',
+        what: 'Planned speed in knots, used for the time to the job and the ETA.',
+        use: 'Remembered on the device.' },
+      { selector: '#route-result', title: 'Route result',
+        what: 'Distance by water, time at your speed, numbered courses (degrees true and distance for each leg), straight-line distance and ETA if leaving now.',
+        note: 'Routes go around headlands and rocks, keep mid-channel and follow charted channels where mapped. There is no depth data, so check the chart in shallow water.' },
+      { selector: '#route-map', title: 'Route map',
+        what: 'The route drawn over the coastline: green start, red job location, dashed red track.' },
+      { selector: '#boundary-toggle', title: '2 NM boundary alarm',
+        what: 'Turns the boundary watch on or off.',
+        use: 'Turn on once under way. Warns 500 m before the 2 NM limit and again beyond it, with sound, vibration (Android) and a notification (Android, or iPhone/iPad with the app on the Home Screen).',
+        note: 'Keep the app open on screen while it is on.' },
+      { selector: '#boundary-map', title: 'Boundary map',
+        what: 'The 2 NM limit (red) and the 500 m warning line (dashed), measured from the outermost land, island, rock platform or reef, with the boat\'s position.',
+        note: 'Mapped from South Head to Cape Baily.' },
+      { selector: '#sdt-speed', title: 'Speed · Distance · Time',
+        what: 'Fill in any two and the third is worked out. Knots and nautical miles by default; km/h and km available.',
+        use: 'Time answers also show the ETA if leaving now.' },
+      { selector: '#pos-get', title: 'Position',
+        what: 'Current GPS position in degrees and decimal minutes (the radio format), degrees-minutes-seconds and decimal, with the nearest landmark. Also distance and bearing to any landmark, and a converter for positions given in any format.' },
+      { selector: '#fuel-onboard', title: 'Fuel & Range',
+        what: 'Endurance and radius from fuel on board, burn rate and cruise speed, using the rule of thirds (⅓ out, ⅓ back, ⅓ reserve).',
+        use: 'For long searches, tows or jobs outside the usual area. Use a higher burn rate when towing or in heavy seas.',
+        note: 'Needs the real burn rate from the skipper. Tank capacity 450 L.' }
+    ]
+  },
+  {
+    id: 'info',
+    title: 'Info',
+    blurb: 'Setup check and reference material. Draft content to be confirmed against current SLSA SOPs.',
+    components: [
+      { selector: '#setup-card', title: 'Phone Setup Check',
+        what: 'Shows whether Microphone, Location and Notifications are Allowed, Blocked or Not asked yet.',
+        use: 'Each crew member taps Allow access once at the start of a patrol. If anything says Blocked, the steps underneath show how to fix it on iPhone/iPad and Android.' },
+      { selector: '#panel-info details:nth-of-type(1)', title: 'Surf Rescue 30 quick facts',
+        what: 'Callsign, base, coverage, operations, vessel, survey, fuel, tasking (13SURF), comms, navigation, safety gear, equipment and the ORB coordinator contact.' },
+      { selector: '#panel-info details:nth-of-type(2)', title: 'Distress, urgency & safety calls',
+        what: 'MAYDAY, PAN-PAN and SÉCURITÉ call formats and channel 16.' },
+      { selector: '#panel-info details:nth-of-type(3)', title: 'Phonetic alphabet & prowords' },
+      { selector: '#panel-info details:nth-of-type(4)', title: 'Beaufort scale',
+        what: 'Force, knots, description and sea state, with the Strong Wind and Gale Warning thresholds.' },
+      { selector: '#panel-info details:nth-of-type(5)', title: 'Patrol log form categories',
+        what: 'The weather, sea, swell and wind categories and patrol statistics from the paper form, for filling it in.' }
+    ]
+  },
+  {
+    id: 'edit',
+    title: 'Editing an entry',
+    blurb: 'Tapping any log entry opens this.',
+    components: [
+      { selector: '#edit-text', title: 'Entry text',
+        what: 'The words of the entry, ready to correct (for example a misheard place name).' },
+      { selector: '#edit-delete', title: 'Delete', what: 'Removes the entry after a confirmation.' },
+      { selector: '#edit-save', title: 'Save', what: 'Keeps the corrected text. The time and position stay as recorded.' }
+    ]
+  }
+];
