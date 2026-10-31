@@ -27,7 +27,7 @@ curl -sS --retry 3 -m 300 --data-urlencode "data=[out:json][timeout:240];
   nwr[\"leisure\"=\"marina\"][\"name\"]($BBOX);
   nwr[\"amenity\"=\"ferry_terminal\"][\"name\"]($BBOX);
   nwr[\"place\"~\"^(suburb|locality|village)$\"][\"name\"~\"^(Grays Point|Bundeena|Maianbar|Kurnell|La Perouse|Watsons Bay|Taren Point|Sylvania Waters|Kangaroo Point|Lilli Pilli|Dolans Bay|Burraneer|Yowie Bay|Port Hacking)$\"]($BBOX);
-  nwr[\"name\"~\"Tom Ugly\"]($BBOX);
+  nwr[\"name\"~\"Tom Ugly|Figure Eight|Figure 8\"]($BBOX);
 );
 out center tags;" "$API" -o "$OUT/names.json"
 
