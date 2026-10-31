@@ -7,9 +7,25 @@ set -euo pipefail
 OUT="${1:-osm}"
 mkdir -p "$OUT"
 BBOX="-34.20,151.00,-33.76,151.36"
-API="https://overpass-api.de/api/interpreter"
+ENDPOINTS=(https://overpass-api.de/api/interpreter https://overpass.private.coffee/api/interpreter https://overpass.kumi.systems/api/interpreter)
 
-curl -sS --retry 3 -m 300 --data-urlencode "data=[out:json][timeout:240];
+# query <file> <overpass-ql>: try each server until one returns valid JSON
+query() {
+  local file="$1" ql="$2"
+  for api in "${ENDPOINTS[@]}"; do
+    for attempt in 1 2; do
+      if curl -sS -m 300 --data-urlencode "data=$ql" "$api" -o "$file" &&
+         python3 -c "import json,sys; json.load(open(sys.argv[1]))['elements']" "$file" 2>/dev/null; then
+        echo "ok: $api → $file"; return 0
+      fi
+      echo "::warning::$api attempt $attempt returned: $(head -c 300 "$file" | tr '\n' ' ')"
+      sleep 20
+    done
+  done
+  echo "::error::all Overpass servers failed for $file"; return 1
+}
+
+query "$OUT/raw-features.json" "[out:json][timeout:240];
 (
   way[\"natural\"=\"coastline\"]($BBOX);
   way[\"natural\"~\"^(bare_rock|reef|rock|shoal)$\"]($BBOX);
@@ -17,9 +33,9 @@ curl -sS --retry 3 -m 300 --data-urlencode "data=[out:json][timeout:240];
   way[\"place\"~\"^(island|islet)$\"]($BBOX);
   node[\"place\"~\"^(island|islet)$\"]($BBOX);
 );
-out geom;" "$API" -o "$OUT/raw-features.json"
+out geom;"
 
-curl -sS --retry 3 -m 300 --data-urlencode "data=[out:json][timeout:240];
+query "$OUT/names.json" "[out:json][timeout:240];
 (
   nwr[\"natural\"~\"^(beach|bay|cape|peninsula|reef|shoal)$\"][\"name\"]($BBOX);
   nwr[\"place\"~\"^(island|islet)$\"][\"name\"]($BBOX);
@@ -29,7 +45,7 @@ curl -sS --retry 3 -m 300 --data-urlencode "data=[out:json][timeout:240];
   nwr[\"place\"~\"^(suburb|locality|village)$\"][\"name\"~\"^(Grays Point|Bundeena|Maianbar|Kurnell|La Perouse|Watsons Bay|Taren Point|Sylvania Waters|Kangaroo Point|Lilli Pilli|Dolans Bay|Burraneer|Yowie Bay|Port Hacking)$\"]($BBOX);
   nwr[\"name\"~\"Tom Ugly|Figure Eight|Figure 8\"]($BBOX);
 );
-out center tags;" "$API" -o "$OUT/names.json"
+out center tags;"
 
 # Shape features into the format build_coast.py expects
 python3 - "$OUT" <<'PY'

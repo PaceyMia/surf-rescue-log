@@ -93,9 +93,11 @@ islands = [to_ll(g) for g in outcrops if g.geom_type != 'Point' and g.area > 150
 # Cells at least CLEAR_M from any land/outcrop and connected to open sea.
 import numpy as np, shapely
 from collections import deque
-CLEAR_M = 100.0
-CELL_M = 75.0
-G_LAT_MIN, G_LAT_MAX, G_LON_MIN, G_LON_MAX = -34.045, -33.82, 151.215, 151.36
+# 50 m keeps narrow waterways (Gunnamatta Bay, upper Georges River) open
+CLEAR_M = 50.0
+CELL_M = 50.0
+# Figure Eight Pools → Manly, incl. the harbour, Botany Bay/Georges River and Port Hacking
+G_LAT_MIN, G_LAT_MAX, G_LON_MIN, G_LON_MAX = -34.20, -33.775, 151.04, 151.36
 x0, y0 = P(G_LAT_MIN, G_LON_MIN)
 x1, y1 = P(G_LAT_MAX, G_LON_MAX)
 cols = int((x1 - x0) // CELL_M) + 1
