@@ -44,6 +44,13 @@ The mic stays live until Stop is tapped. If the browser ends the session (silenc
 - WillyWeather field names in `fetch_weather.mjs` need checking against the first live response once `WW_API_KEY` is set.
 - Tide is a model estimate (Open-Meteo sea level) until WillyWeather tides are available.
 
+## Stakeholder app guide
+An annotated walkthrough of every screen lives at https://claude.ai/artifact/KcQsu3EAdzrB7qeMDWwYVr (owner: Mia). Keep it current: after any UI change, update the matching entry in `docs/guide/components.mjs` (what / how to use / data / note), then
+
+    node docs/guide/build-guide.mjs <scratchpad>/app-guide.html
+
+and republish that file to the same artifact. The generator drives the real app with example data, screenshots each screen and places the numbered markers by measuring each component's selector; it warns about any selector it can't find.
+
 ## Verifying changes
 Speech can't be driven in headless Chromium, so the smoke test injects a fake `SpeechRecognition`, fake GPS, and mocked weather/relay responses:
 
