@@ -534,10 +534,13 @@ startScreen.addEventListener('submit', (e) => {
 shiftSummary.addEventListener('click', showStartScreen);
 
 // ── Speech Recognition ──────────────────────────────────────────────
-// The mic stays live until the user taps Stop. If the browser ends the
-// session on its own (silence timeout, signal drop), it is restarted and
-// the transcript carries on. Text is saved as a draft as it arrives, so even
-// a crash or a closed tab can't lose what was said.
+// Push to talk: tap Log Entry to start one listening session, tap Stop to
+// save it. Sessions are never restarted automatically: on Android each
+// restart plays the phone's start/stop tone and re-sends earlier words.
+// If the phone stops listening by itself (a long silence), what was heard is
+// saved and the button offers "Continue entry" to keep adding to it.
+// Text is saved as a draft as it arrives, so a crash or a closed app can't
+// lose what was said.
 const SpeechRecognition =
   window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -549,44 +552,62 @@ if (!SpeechRecognition) {
   dictateBtn.style.opacity = '0.5';
 }
 
-const FATAL_ERRORS = new Set(['not-allowed', 'service-not-allowed', 'audio-capture', 'language-not-supported']);
-const RESTART_WINDOW_MS = 30000;
-const MAX_RESTARTS = 12;
+const CONTINUE_WINDOW_MS = 60000;
 
 let recognition = null;
 let isListening = false;
 let finishing   = false;
 let userStopped = false;
 let lastError   = null;
-let finalText   = '';
-let interimText = '';
+let baseText    = '';    // text already in the entry when continuing it
+let heardText   = '';    // this session, rebuilt from every result event
+let lastIsFinal = true;
 let startedAt   = null;
-let restarts    = [];
 let entryPos    = null;
 let posPromise  = null;
 let timerId     = null;
 let wakeLock    = null;
 let usePhrases  = true;
+let continueEntry = null; // entry the next tap adds to, after the phone stopped listening
+let continueTimer = null;
+
+// Android sends each result as the whole phrase so far ("departing",
+// "departing Botany", "departing Botany Bay"); desktop sends new pieces.
+// Merge either into one clean sentence without repeats.
+function mergeText(a, b) {
+  if (!a) return b;
+  const la = a.toLowerCase(), lb = b.toLowerCase();
+  if (lb.startsWith(la)) return b;      // cumulative result: the new one supersedes
+  if (la.includes(lb)) return a;        // repeat of words already heard
+  return `${a} ${b}`;
+}
+
+function sessionText(results) {
+  let text = '';
+  for (let i = 0; i < results.length; i++) {
+    const t = results[i][0].transcript.trim();
+    if (t) text = mergeText(text, t);
+  }
+  return text;
+}
+
+const fullText = () => [baseText, heardText].filter(Boolean).join(' ').trim();
 
 function saveDraft() {
-  const text = `${finalText} ${interimText}`.trim();
+  const text = fullText();
   if (!text) return;
   storeSet(DRAFT_KEY, JSON.stringify({ startedAt: startedAt.toISOString(), text, pos: entryPos }));
 }
 
 function renderLive() {
-  const done = correctTranscript(finalText);
   liveText.replaceChildren();
-  if (!done && !interimText) {
+  if (!baseText && !heardText) {
     liveText.textContent = 'Listening… speak now.';
     return;
   }
   const strong = document.createElement('span');
-  strong.textContent = done;
-  const soft = document.createElement('span');
-  soft.className = 'interim';
-  soft.textContent = (done && interimText ? ' ' : '') + interimText;
-  liveText.append(strong, soft);
+  strong.textContent = correctTranscript(fullText());
+  liveText.append(strong);
   liveText.scrollTop = liveText.scrollHeight;
 }
 
@@ -610,16 +631,24 @@ document.addEventListener('visibilitychange', () => {
   if (isListening && document.visibilityState === 'visible') requestWakeLock();
 });
 
+function clearContinue() {
+  continueEntry = null;
+  clearTimeout(continueTimer);
+  if (!isListening) dictateBtn.textContent = '🎙️ Log Entry';
+}
+
 function beginRecording() {
-  finalText   = '';
-  interimText = '';
+  const continuing = continueEntry && logs.includes(continueEntry) ? continueEntry : null;
+  baseText    = continuing ? continuing.text.replace(/[.!?]$/, '') : '';
+  heardText   = '';
+  lastIsFinal = true;
   userStopped = false;
   finishing   = false;
   lastError   = null;
-  startedAt   = new Date();
-  restarts    = [];
-  entryPos    = null;
+  startedAt   = continuing ? continuing.timestamp : new Date();
+  entryPos    = continuing ? continuing.pos || null : null;
   isListening = true;
+  clearTimeout(continueTimer);
 
   dictateBtn.textContent = '⏹️ Stop & Save Entry';
   dictateBtn.classList.add('listening');
@@ -631,17 +660,14 @@ function beginRecording() {
   timerId = setInterval(tickTimer, 1000);
   requestWakeLock();
 
-  posPromise = getPosition().then(p => { if (p) entryPos = p; return p; });
-  startSession();
-}
+  if (!entryPos) posPromise = getPosition().then(p => { if (p) entryPos = p; return p; });
 
-function startSession() {
   const rec = new SpeechRecognition();
   recognition = rec;
   rec.lang            = 'en-AU'; // Australian English
   rec.interimResults  = true;    // show words as they're heard
   rec.maxAlternatives = 1;
-  rec.continuous      = true;    // keep recording until the user taps Stop
+  rec.continuous      = true;    // one session until Stop (or a long silence)
 
   if (usePhrases && 'phrases' in rec && window.SpeechRecognitionPhrase) {
     try {
@@ -650,54 +676,21 @@ function startSession() {
   }
 
   rec.onresult = (event) => {
-    let interim = '';
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      const piece = event.results[i][0].transcript.trim();
-      if (!piece) continue;
-      if (event.results[i].isFinal) {
-        finalText += (finalText ? ' ' : '') + piece;
-      } else {
-        interim += (interim ? ' ' : '') + piece;
-      }
-    }
-    interimText = interim;
+    heardText = sessionText(event.results);
+    lastIsFinal = event.results[event.results.length - 1]?.isFinal ?? true;
     renderLive();
     saveDraft();
   };
 
   rec.onerror = (event) => {
-    // Non-fatal in continuous mode — onend restarts the session
-    if (event.error === 'no-speech' || event.error === 'aborted') return;
+    if (event.error === 'aborted') return;
     if (event.error === 'phrases-not-supported') { usePhrases = false; return; }
     lastError = event.error;
   };
 
   rec.onend = () => {
     if (recognition === rec) recognition = null;
-    // Keep any words that hadn't been finalised when the session ended
-    if (interimText) {
-      finalText += (finalText ? ' ' : '') + interimText;
-      interimText = '';
-      saveDraft();
-    }
-    if (!isListening) return;
-
-    if (userStopped || FATAL_ERRORS.has(lastError)) { finishRecording(); return; }
-
-    const now = Date.now();
-    restarts = restarts.filter(t => now - t < RESTART_WINDOW_MS);
-    if (restarts.length >= MAX_RESTARTS) { finishRecording(); return; }
-    restarts.push(now);
-
-    if (lastError === 'network') {
-      statusMsg.textContent = '⚠️ No signal — still recording, retrying… Tap Stop to save.';
-    }
-    const delay = lastError === 'network' ? 2000 : 250;
-    lastError = lastError === 'network' ? 'network' : null;
-    setTimeout(() => {
-      if (!isListening || userStopped) { if (isListening) finishRecording(); return; }
-      try { startSession(); } catch { lastError = 'start-failed'; finishRecording(); }
-    }, delay);
+    if (isListening) finishRecording();
   };
 
   try {
@@ -713,40 +706,55 @@ function finishRecording() {
   finishing = true;
   isListening = false;
 
-  const heard = `${finalText} ${interimText}`.trim();
+  const continuing = continueEntry && logs.includes(continueEntry) ? continueEntry : null;
+  const text = fullText();
   let entry = null;
-  if (heard) {
-    entry = addLogEntry(heard, { timestamp: startedAt, pos: entryPos });
+  if (continuing && heardText) {
+    continuing.text = formatText(text);
+    updateEntry(continuing);
+    entry = continuing;
+  } else if (!continuing && text) {
+    entry = addLogEntry(text, { timestamp: startedAt, pos: entryPos });
     // GPS may still be arriving — attach it when it does
     if (entry && !entry.pos && posPromise) {
       posPromise.then(p => { if (p && !entry.pos) { entry.pos = p; updateEntry(entry); } });
     }
+  } else if (continuing) {
+    entry = continuing;
   }
   storeRemove(DRAFT_KEY);
-  statusMsg.textContent = endMessage(Boolean(heard));
   resetButton();
+
+  // The phone stopped listening by itself: offer to keep adding to this entry
+  if (!userStopped && entry && !lastError) {
+    continueEntry = entry;
+    dictateBtn.textContent = '🎙️ Continue entry';
+    statusMsg.textContent = '⏸ The phone stopped listening — what was heard is saved. Tap Continue entry to add more (within a minute).';
+    continueTimer = setTimeout(() => { clearContinue(); statusMsg.textContent = ''; }, CONTINUE_WINDOW_MS);
+    return;
+  }
+  clearContinue();
+  statusMsg.textContent = endMessage(Boolean(entry && (heardText || baseText)));
 }
 
 function endMessage(saved) {
   if (lastError === 'not-allowed' || lastError === 'service-not-allowed') {
     return saved
-      ? '⚠️ Microphone stopped by the phone — what was heard has been saved. Tap Log Entry to continue.'
-      : '⚠️ Microphone access denied. Allow mic access for this site and reload.';
+      ? '⚠️ Microphone stopped by the phone — what was heard has been saved.'
+      : '⚠️ Microphone access denied. Allow mic access for this site (Info → Phone Setup Check).';
   }
   if (lastError === 'audio-capture') {
     return '⚠️ No microphone found. Check a headset is connected, then try again.';
   }
   if (lastError === 'network') {
     return saved
-      ? '⚠️ Lost signal — what was heard has been saved. Tap Log Entry to continue.'
+      ? '⚠️ Lost signal — what was heard has been saved.'
       : '⚠️ No signal — voice entry needs mobile data. Try again when back in range.';
   }
-  if (!userStopped) {
-    return saved
-      ? '⚠️ Recording stopped by the phone — what was heard has been saved.'
-      : 'Recording stopped. Tap Log Entry to try again.';
+  if (lastError === 'no-speech') {
+    return saved ? '✅ Entry saved.' : "Didn't hear anything. Tap Log Entry and speak after the tone.";
   }
-  return saved ? '✅ Entry saved.' : 'Nothing recorded. Tap to try again.';
+  return saved ? '✅ Entry saved.' : 'Nothing recorded. Tap Log Entry to try again.';
 }
 
 function stopRecognition() {
@@ -756,15 +764,13 @@ function stopRecognition() {
     // Some browsers occasionally never fire onend — don't leave it hanging
     setTimeout(() => { if (!finishing) finishRecording(); }, 2500);
   } else {
-    finishRecording(); // between sessions (mid-restart)
+    finishRecording();
   }
 }
 
 function resetButton() {
   isListening = false;
   recognition = null;
-  finalText   = '';
-  interimText = '';
   clearInterval(timerId);
   releaseWakeLock();
   liveBox.hidden = true;

@@ -32,7 +32,7 @@ Storage keys: `surfPatrolLogs`, `surfPatrolShift`, `surfPatrolCrewNames`, `surfP
 When adding a file the app loads, add it to `SHELL` in `sw.js` and bump `CACHE`.
 
 ## Recording behaviour
-The mic stays live until Stop is tapped. If the browser ends the session (silence, signal drop) it restarts and keeps the transcript; fatal errors (`not-allowed`, `audio-capture`) or >12 restarts in 30 s save what was heard and stop. Entries are timestamped at the start of recording and get a GPS position if available.
+Push to talk: one tap starts one recognition session, the next tap stops and saves it. Never restart sessions automatically — on Android every start plays the phone's tone and re-sends earlier words. The transcript is rebuilt from the session's full `event.results` on every event and merged so Android's cumulative results ("departing", "departing Botany", …) don't repeat. If the phone ends the session itself (long silence), what was heard is saved and the button offers "Continue entry" for 60 s, which appends to that same entry. Entries are timestamped at the start of recording and get a GPS position if available.
 
 ## Known gaps (Oct 2026)
 - Dictation needs signal (Chrome/Safari speech is server-based). The app itself opens offline.
@@ -43,6 +43,13 @@ The mic stays live until Stop is tapped. If the browser ends the session (silenc
 - BOM warning products (IDN2xxxx) are parsed for their titles only; `raw-warnings/` on the weather-data branch holds samples while the parser is refined.
 - WillyWeather field names in `fetch_weather.mjs` need checking against the first live response once `WW_API_KEY` is set.
 - Tide is a model estimate (Open-Meteo sea level) until WillyWeather tides are available.
+
+## Stakeholder app guide
+An annotated walkthrough of every screen lives at https://claude.ai/artifact/KcQsu3EAdzrB7qeMDWwYVr (owner: Mia). Keep it current: after any UI change, update the matching entry in `docs/guide/components.mjs` (what / how to use / data / note), then
+
+    node docs/guide/build-guide.mjs <scratchpad>/app-guide.html
+
+and republish that file to the same artifact. The generator drives the real app with example data, screenshots each screen and places the numbered markers by measuring each component's selector; it warns about any selector it can't find.
 
 ## Verifying changes
 Speech can't be driven in headless Chromium, so the smoke test injects a fake `SpeechRecognition`, fake GPS, and mocked weather/relay responses:
