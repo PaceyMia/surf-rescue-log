@@ -1,129 +1,308 @@
 /* ── Surf Patrol Log – weather.js ──
-   Weather tab: BOM coastal waters forecast (via relay), model forecast from
-   Open-Meteo (free, no key), WillyWeather tides/observations (via relay),
-   and a Windy live map. Last good data is cached so a dead spot still
-   shows the most recent forecast, labelled with its age.
+   Weather tab:
+   - Warnings and BOM marine forecast from weather.json (published by the
+     "Weather data" GitHub workflow), shown as a badge/banner app-wide.
+   - Model forecast from Open-Meteo (free, no key): now tiles, tide estimate
+     and a 24-hour strip.
+   - Sun, first and last light calculated on the device.
+   - Live maps: Windy (wind, waves) and RainViewer (radar, auto-plays).
+   Last good data is cached so a dead spot still shows the latest, with its age.
 */
 (() => {
-  const WX_CACHE  = 'surfPatrolWx';
-  const BOM_CACHE = 'surfPatrolBom';
-  const WW_CACHE  = 'surfPatrolWw';
+  const WX_CACHE   = 'surfPatrolWx';
+  const FEED_CACHE = 'surfPatrolFeed';
+  const UNITS_KEY  = 'surfPatrolUnits';
   const point = APP_CONFIG.forecastPoint;
-  const relay = APP_CONFIG.relayUrl.replace(/\/$/, '');
 
-  const bomBody   = document.getElementById('bom-body');
-  const wxNow     = document.getElementById('wx-now');
-  const wxTable   = document.getElementById('wx-table-wrap');
-  const wxUpdated = document.getElementById('wx-updated');
-  const wwCard    = document.getElementById('ww-card');
-  const wwBody    = document.getElementById('ww-body');
-  const mapWrap   = document.getElementById('map-wrap');
-  const mapPills  = document.getElementById('map-pills');
+  const $ = id => document.getElementById(id);
+  const wxNow = $('wx-now'), wxStrip = $('wx-strip'), wxUpdated = $('wx-updated');
+  const warningsBody = $('warnings-body'), warnBadge = $('warn-badge'), warnBanner = $('warning-banner');
+  const bomBody = $('bom-body'), wwCard = $('ww-card'), wwBody = $('ww-body');
+  const mapWrap = $('map-wrap'), mapPills = $('map-pills'), mapCredit = $('map-credit');
+  const unitPills = $('wind-unit');
 
   let loadedAt = 0;
+  let model = null; // last Open-Meteo data, re-rendered when units change
+  let feed = null;  // last weather.json
 
+  // ── Units (remembered per device) ─────────────────────────────────
+  let units = { wind: 'kn' };
+  try { units = { ...units, ...JSON.parse(localStorage.getItem(UNITS_KEY)) }; } catch { /* defaults */ }
+  unitPills.querySelector(`input[value="${units.wind}"]`).checked = true;
+
+  const windLabel = () => units.wind === 'kmh' ? 'km/h' : 'kn';
+  const wind = kn => kn == null ? null : units.wind === 'kmh' ? kn * 1.852 : kn;
+
+  unitPills.addEventListener('change', e => {
+    units.wind = e.target.value;
+    try { localStorage.setItem(UNITS_KEY, JSON.stringify(units)); } catch { /* storage unavailable */ }
+    if (model) renderModel(model.data, model.at);
+    if (feed) renderFeed(feed.data, feed.at);
+    resetWindyMaps();
+  });
+
+  // ── Helpers ───────────────────────────────────────────────────────
   const COMPASS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
   const compass = deg => deg == null ? '–' : COMPASS[Math.round(deg / 22.5) % 16];
   const fmt = (v, dp = 0) => v == null || Number.isNaN(v) ? '–' : Number(v).toFixed(dp);
-  const hhmm = iso => iso.slice(11, 16);
-
-  function cacheGet(key) {
-    try { return JSON.parse(localStorage.getItem(key)); } catch { return null; }
-  }
-  function cacheSet(key, data) {
-    try { localStorage.setItem(key, JSON.stringify({ at: Date.now(), data })); } catch { /* full */ }
-  }
-  function ageLabel(at) {
-    const mins = Math.round((Date.now() - at) / 60000);
-    if (mins < 2) return 'just now';
-    if (mins < 60) return `${mins} min ago`;
-    return `${Math.round(mins / 60)} h ago`;
-  }
+  const hhmm = d => d.toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: '2-digit', minute: '2-digit', hour12: false });
+  const sydneyKey = d => d.toLocaleString('sv-SE', { timeZone: 'Australia/Sydney' }).slice(0, 13).replace(' ', 'T'); // YYYY-MM-DDTHH
   const el = (tag, cls, text) => {
     const n = document.createElement(tag);
     if (cls) n.className = cls;
     if (text != null) n.textContent = text;
     return n;
   };
-
+  function cacheGet(key) { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } }
+  function cacheSet(key, data) { try { localStorage.setItem(key, JSON.stringify({ at: Date.now(), data })); } catch { /* full */ } }
+  function ageLabel(at) {
+    const mins = Math.round((Date.now() - at) / 60000);
+    if (mins < 2) return 'just now';
+    if (mins < 60) return `${mins} min ago`;
+    return `${Math.round(mins / 60)} h ago`;
+  }
   async function fetchJson(url) {
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   }
 
+  // ── Sun: sunrise/sunset and civil twilight (first/last light) ─────
+  // Standard sunrise equation; zenith 90.833° for sun, 96° for civil twilight.
+  function sunEvent(dateKey, zenith, rising) {
+    const [y, m, d] = dateKey.split('-').map(Number);
+    const rad = Math.PI / 180;
+    const N = Math.floor((Date.UTC(y, m - 1, d) - Date.UTC(y, 0, 0)) / 86400000);
+    const lngHour = point.lon / 15;
+    const t = N + ((rising ? 6 : 18) - lngHour) / 24;
+    const M = 0.9856 * t - 3.289;
+    let L = (M + 1.916 * Math.sin(M * rad) + 0.020 * Math.sin(2 * M * rad) + 282.634 + 360) % 360;
+    let RA = (Math.atan(0.91764 * Math.tan(L * rad)) / rad + 360) % 360;
+    RA = (RA + Math.floor(L / 90) * 90 - Math.floor(RA / 90) * 90) / 15;
+    const sinDec = 0.39782 * Math.sin(L * rad);
+    const cosDec = Math.cos(Math.asin(sinDec));
+    const cosH = (Math.cos(zenith * rad) - sinDec * Math.sin(point.lat * rad)) / (cosDec * Math.cos(point.lat * rad));
+    if (cosH > 1 || cosH < -1) return null;
+    const H = (rising ? 360 - Math.acos(cosH) / rad : Math.acos(cosH) / rad) / 15;
+    const T = H + RA - 0.06571 * t - 6.622;
+    const UT = ((T - lngHour) % 24 + 24) % 24;
+    let when = new Date(Date.UTC(y, m - 1, d) + UT * 3600000);
+    // UT can land on the neighbouring UTC day — pull it into the local day asked for
+    for (let i = 0; i < 2 && when.toLocaleDateString('sv-SE', { timeZone: 'Australia/Sydney' }) !== dateKey; i++) {
+      when = new Date(when.getTime() + (when.toLocaleDateString('sv-SE', { timeZone: 'Australia/Sydney' }) < dateKey ? 1 : -1) * 86400000);
+    }
+    return when;
+  }
+
+  function sunToday() {
+    const key = new Date().toLocaleDateString('sv-SE', { timeZone: 'Australia/Sydney' });
+    return {
+      firstLight: sunEvent(key, 96, true), sunrise: sunEvent(key, 90.833, true),
+      sunset: sunEvent(key, 90.833, false), lastLight: sunEvent(key, 96, false)
+    };
+  }
+
+  // ── Tide ──────────────────────────────────────────────────────────
+  // WillyWeather predictions when available, otherwise the Open-Meteo sea
+  // level model (an estimate — timing can be out by 20–40 minutes).
+  function tideInfo(marine) {
+    const now = Date.now();
+    const ww = feed?.data?.ww?.tides;
+    if (ww?.length) {
+      const events = ww.map(t => ({ at: new Date(t.dateTime.replace(' ', 'T') + '+11:00'), type: t.type, height: t.height }))
+        .filter(e => !Number.isNaN(e.at.getTime())).sort((a, b) => a.at - b.at);
+      const next = events.filter(e => e.at > now);
+      if (next.length) {
+        return {
+          trend: next[0].type === 'high' ? 'rising' : 'falling',
+          nextHigh: next.find(e => e.type === 'high'), nextLow: next.find(e => e.type === 'low'),
+          source: 'WillyWeather'
+        };
+      }
+    }
+    const h = marine?.hourly;
+    if (!h?.sea_level_height_msl) return null;
+    const pts = h.time.map((t, i) => ({ at: new Date(t + ':00+11:00'), v: h.sea_level_height_msl[i] })).filter(p => p.v != null);
+    // Turning points with a parabola through each local max/min for the time
+    const events = [];
+    for (let i = 1; i < pts.length - 1; i++) {
+      const [a, b, c] = [pts[i - 1].v, pts[i].v, pts[i + 1].v];
+      const isHigh = b >= a && b > c, isLow = b <= a && b < c;
+      if (!isHigh && !isLow) continue;
+      const denom = a - 2 * b + c;
+      const offset = denom ? 0.5 * (a - c) / denom : 0; // hours from pts[i]
+      events.push({ at: new Date(pts[i].at.getTime() + offset * 3600000), type: isHigh ? 'high' : 'low', height: b - denom * offset * offset / 4 });
+    }
+    const next = events.filter(e => e.at > now);
+    if (!next.length) return null;
+    return {
+      trend: next[0].type === 'high' ? 'rising' : 'falling',
+      nextHigh: next.find(e => e.type === 'high'), nextLow: next.find(e => e.type === 'low'),
+      source: 'model estimate'
+    };
+  }
+
   // ── Open-Meteo model forecast ─────────────────────────────────────
   async function loadModel() {
-    const common = `latitude=${point.lat}&longitude=${point.lon}&timezone=Australia%2FSydney&forecast_days=2`;
+    const common = `latitude=${point.lat}&longitude=${point.lon}&timezone=Australia%2FSydney&forecast_days=3`;
     const [wx, sea] = await Promise.all([
       fetchJson(`https://api.open-meteo.com/v1/forecast?${common}&wind_speed_unit=kn` +
-        '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation_probability,weather_code' +
-        '&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m' +
-        '&daily=sunrise,sunset'),
+        '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,temperature_2m,weather_code' +
+        '&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m'),
       fetchJson(`https://marine-api.open-meteo.com/v1/marine?${common}` +
-        '&hourly=wave_height,swell_wave_height,swell_wave_direction,swell_wave_period,sea_surface_temperature')
+        '&hourly=wave_height,swell_wave_height,swell_wave_direction,swell_wave_period,sea_surface_temperature,sea_level_height_msl')
     ]);
     return { wx, sea };
   }
 
-  function renderModel({ wx, sea }, at) {
-    wxUpdated.textContent = `· ${ageLabel(at)}`;
-    const h = wx.hourly, m = sea.hourly;
-    const nowKey = new Date().toLocaleString('sv-SE', { timeZone: 'Australia/Sydney' }).slice(0, 13).replace(' ', 'T');
-    let start = h.time.findIndex(t => t.slice(0, 13) >= nowKey);
-    if (start < 0) start = 0;
-    const seaIdx = t => m.time.indexOf(t);
+  const SKY = code => code == null ? '' : code === 0 ? '☀️' : code <= 2 ? '🌤️' : code === 3 ? '☁️' : code <= 48 ? '🌫️'
+    : code <= 67 ? '🌧️' : code <= 77 ? '🌨️' : code <= 82 ? '🌦️' : '⛈️';
 
-    const c = wx.current || {};
-    const si = seaIdx(h.time[start]);
-    const tiles = [
-      ['Wind', `${fmt(c.wind_speed_10m ?? h.wind_speed_10m[start])} kn ${compass(c.wind_direction_10m ?? h.wind_direction_10m[start])}`,
-        `gusts ${fmt(c.wind_gusts_10m ?? h.wind_gusts_10m[start])} kn`],
-      ['Swell', `${fmt(m.swell_wave_height[si], 1)} m ${compass(m.swell_wave_direction[si])}`,
-        `${fmt(m.swell_wave_period[si])} s period`],
-      ['Sea', `${fmt(m.wave_height[si], 1)} m`, 'combined waves'],
-      ['Water', `${fmt(m.sea_surface_temperature[si], 1)} °C`, c.temperature_2m != null ? `air ${fmt(c.temperature_2m)} °C` : ''],
-      ['Sun', `↑ ${hhmm(wx.daily.sunrise[0])}`, `↓ ${hhmm(wx.daily.sunset[0])}`]
-    ];
-    wxNow.replaceChildren(el('div', 'tiles'));
-    const grid = wxNow.firstChild;
-    tiles.forEach(([label, big, small]) => {
-      const t = el('div', 'tile');
-      t.append(el('span', 'tile-label', label), el('span', 'tile-big', big), el('span', 'tile-small', small));
-      grid.append(t);
-    });
-
-    const table = el('table', 'data-table wx-table');
-    table.innerHTML = '<thead><tr><th>Time</th><th>Wind kn</th><th>Gust</th><th>Swell</th><th>Sea</th><th>Rain</th></tr></thead>';
-    const body = el('tbody');
-    for (let i = start; i < Math.min(start + 24, h.time.length); i++) {
-      const j = seaIdx(h.time[i]);
-      const tr = el('tr');
-      const day = i > start && h.time[i].slice(11, 13) === '00';
-      if (day) tr.className = 'day-break';
-      [
-        hhmm(h.time[i]),
-        `${fmt(h.wind_speed_10m[i])} ${compass(h.wind_direction_10m[i])}`,
-        fmt(h.wind_gusts_10m[i]),
-        j < 0 ? '–' : `${fmt(m.swell_wave_height[j], 1)} ${compass(m.swell_wave_direction[j])} ${fmt(m.swell_wave_period[j])}s`,
-        j < 0 ? '–' : fmt(m.wave_height[j], 1),
-        h.precipitation_probability[i] == null ? '–' : `${h.precipitation_probability[i]}%`
-      ].forEach(v => tr.append(el('td', null, v)));
-      // Highlight strong wind (Strong Wind Warning threshold 26 kn)
-      if (h.wind_speed_10m[i] >= 26 || h.wind_gusts_10m[i] >= 34) tr.classList.add('warn');
-      body.append(tr);
-    }
-    table.append(body);
-    wxTable.replaceChildren(table);
+  // Windy-style wind colours (by knots)
+  function windColour(kn) {
+    if (kn == null) return '';
+    if (kn < 5) return '#9FD9F2';
+    if (kn < 10) return '#7FE3C9';
+    if (kn < 15) return '#8BE36E';
+    if (kn < 20) return '#D6E85A';
+    if (kn < 26) return '#FFD23F';
+    if (kn < 34) return '#FF9A3C';
+    return '#FF5A4E';
   }
 
-  // ── BOM coastal waters forecast (via relay) ───────────────────────
-  function renderBom(data, at) {
+  function tile(label, big, small, extraClass = '') {
+    const t = el('div', `tile ${extraClass}`);
+    t.append(el('span', 'tile-label', label), el('span', 'tile-big', big));
+    if (small) t.append(el('span', 'tile-small', small));
+    return t;
+  }
+
+  function renderModel({ wx, sea }, at) {
+    model = { data: { wx, sea }, at };
+    wxUpdated.textContent = `· ${ageLabel(at)}`;
+    const h = wx.hourly, m = sea.hourly;
+    const nowKey = sydneyKey(new Date());
+    let start = h.time.findIndex(t => t.slice(0, 13) >= nowKey);
+    if (start < 0) start = 0;
+    const si = m.time.indexOf(h.time[start]);
+    const c = wx.current || {};
+    const sun = sunToday();
+    const tide = tideInfo(sea);
+
+    const grid = el('div', 'tiles');
+    grid.append(
+      tile('Wind', `${fmt(wind(c.wind_speed_10m ?? h.wind_speed_10m[start]))} ${windLabel()} ${compass(c.wind_direction_10m ?? h.wind_direction_10m[start])}`,
+        `gusts ${fmt(wind(c.wind_gusts_10m ?? h.wind_gusts_10m[start]))} ${windLabel()}`),
+      tile('Swell · distant weather', `${fmt(m.swell_wave_height[si], 1)} m ${compass(m.swell_wave_direction[si])}`,
+        `${fmt(m.swell_wave_period[si])} s between waves`),
+      tile('Waves · swell + wind chop', `${fmt(m.wave_height[si], 1)} m`, 'what you feel on the boat'),
+      tide
+        ? tile(`Tide · ${tide.source}`, tide.trend === 'rising' ? '↑ Rising' : '↓ Falling',
+            [tide.nextHigh && `High ${hhmm(tide.nextHigh.at)}`, tide.nextLow && `Low ${hhmm(tide.nextLow.at)}`].filter(Boolean).join(' · '),
+            tide.trend === 'rising' ? 'tide-rising' : 'tide-falling')
+        : tile('Tide', '–', 'no tide data'),
+      tile('Water', `${fmt(m.sea_surface_temperature[si], 1)} °C`, c.temperature_2m != null ? `air ${fmt(c.temperature_2m)} °C` : ''),
+      tile('Sunrise · Sunset', `${sun.sunrise ? hhmm(sun.sunrise) : '–'} · ${sun.sunset ? hhmm(sun.sunset) : '–'}`, ''),
+      tile('First light · Last light', `${sun.firstLight ? hhmm(sun.firstLight) : '–'} · ${sun.lastLight ? hhmm(sun.lastLight) : '–'}`, 'civil twilight')
+    );
+    wxNow.replaceChildren(grid);
+
+    renderStrip(h, m, start, tide);
+  }
+
+  // Horizontal hour-by-hour strip, like Windy's bottom panel
+  function renderStrip(h, m, start, tide) {
+    const end = Math.min(start + 24, h.time.length);
+    const cols = [];
+    for (let i = start; i < end; i++) cols.push(i);
+
+    // Tide direction per hour from the model series (or WillyWeather events)
+    const tideAt = i => {
+      const j = m.time.indexOf(h.time[i]);
+      const lvl = m.sea_level_height_msl;
+      if (!lvl || j < 0 || j + 1 >= lvl.length) return '';
+      return lvl[j + 1] > lvl[j] ? '↑' : '↓';
+    };
+
+    const rows = [
+      ['', i => {
+        const t = h.time[i];
+        const label = t.slice(11, 13);
+        return i === start || label === '00'
+          ? `${new Date(t + ':00+11:00').toLocaleDateString('en-AU', { weekday: 'short', timeZone: 'Australia/Sydney' })} ${label}`
+          : label;
+      }, 'row-time'],
+      ['', i => SKY(h.weather_code?.[i]), 'row-sky'],
+      ['Temp °C', i => fmt(h.temperature_2m?.[i])],
+      ['Rain mm', i => h.precipitation?.[i] ? fmt(h.precipitation[i], 1) : ''],
+      [`Wind ${windLabel()}`, i => fmt(wind(h.wind_speed_10m[i])), 'row-wind'],
+      [`Gusts ${windLabel()}`, i => fmt(wind(h.wind_gusts_10m[i])), 'row-gust'],
+      ['Wind dir', i => compass(h.wind_direction_10m[i]), 'row-dir'],
+      ['Swell m', i => { const j = m.time.indexOf(h.time[i]); return j < 0 ? '–' : fmt(m.swell_wave_height[j], 1); }],
+      ['Period s', i => { const j = m.time.indexOf(h.time[i]); return j < 0 ? '–' : fmt(m.swell_wave_period[j]); }],
+      ['Swell dir', i => { const j = m.time.indexOf(h.time[i]); return j < 0 ? '–' : compass(m.swell_wave_direction[j]); }],
+      ['Waves m', i => { const j = m.time.indexOf(h.time[i]); return j < 0 ? '–' : fmt(m.wave_height[j], 1); }],
+      ['Tide', tideAt, 'row-tide']
+    ];
+
+    const table = el('table', 'strip');
+    const tbody = el('tbody');
+    rows.forEach(([label, value, cls]) => {
+      const tr = el('tr', cls || '');
+      tr.append(el('th', null, label));
+      cols.forEach(i => {
+        const td = el('td', i === start ? 'now' : '');
+        const v = value(i);
+        if (cls === 'row-dir') {
+          const arrow = el('span', 'dir-arrow', '↓');
+          arrow.style.transform = `rotate(${h.wind_direction_10m[i]}deg)`;
+          td.append(arrow, el('span', 'dir-text', v));
+        } else {
+          td.textContent = v;
+        }
+        if (cls === 'row-wind') td.style.backgroundColor = windColour(h.wind_speed_10m[i]);
+        if (cls === 'row-gust') td.style.backgroundColor = windColour(h.wind_gusts_10m[i]);
+        if (h.time[i].slice(11, 13) === '00' && i !== start) td.classList.add('day-start');
+        tr.append(td);
+      });
+      tbody.append(tr);
+    });
+    table.append(tbody);
+    wxStrip.replaceChildren(table);
+  }
+
+  // ── Feed: warnings + BOM forecast (+ WillyWeather) ────────────────
+  function renderWarnings(list, at) {
+    warningsBody.replaceChildren();
+    if (!list.length) {
+      warningsBody.append(el('p', 'all-clear', '✓ No current marine warnings for Sydney waters.'));
+    }
+    list.forEach(w => {
+      const item = el(w.link ? 'a' : 'div', 'warning-item');
+      if (w.link) { item.href = w.link; item.target = '_blank'; item.rel = 'noopener'; }
+      item.append(el('strong', null, '⚠️ ' + w.title));
+      const meta = [w.area, w.issued && `issued ${w.issued}`].filter(Boolean).join(' · ');
+      if (meta) item.append(el('span', 'warning-meta', meta));
+      warningsBody.append(item);
+    });
+    warningsBody.append(el('p', 'muted small', `BOM data checked ${ageLabel(at)}`));
+
+    // App-wide signals: tab badge and a banner on the Log tab
+    warnBadge.hidden = !list.length;
+    warnBadge.textContent = list.length ? String(list.length) : '';
+    warnBadge.setAttribute('aria-label', `${list.length} weather warnings`);
+    warnBanner.hidden = !list.length;
+    if (list.length) {
+      warnBanner.textContent = `⚠️ ${list[0].title}${list.length > 1 ? ` (+${list.length - 1} more)` : ''}`;
+    }
+  }
+
+  function renderBom(bom) {
     bomBody.replaceChildren();
-    if (data.issued) bomBody.append(el('p', 'muted small', `Issued ${data.issued} · fetched ${ageLabel(at)}`));
-    data.areas.forEach(area => {
+    if (!bom?.areas?.length) { bomBody.append(el('p', 'muted', 'BOM forecast not available yet.')); return; }
+    if (bom.issued) bomBody.append(el('p', 'muted small', `Issued ${bom.issued}`));
+    bom.areas.forEach(area => {
       bomBody.append(el('h3', null, area.name));
-      if (area.synoptic) bomBody.append(el('p', 'muted small', area.synoptic));
       area.periods.slice(0, 2).forEach(p => {
         const box = el('div', 'bom-period');
         box.append(el('div', 'bom-when', p.label));
@@ -141,33 +320,23 @@
     });
   }
 
-  function bomUnavailable(msg) {
-    bomBody.replaceChildren(el('p', 'muted', msg));
-    const a = el('a', null, 'Open the BOM Sydney waters forecast');
-    a.href = 'https://www.bom.gov.au/nsw/forecasts/sydneywaters.shtml';
-    a.target = '_blank';
-    a.rel = 'noopener';
-    bomBody.append(a);
+  function renderWw(ww) {
+    const o = ww?.observed;
+    wwCard.hidden = !o;
+    if (!o) return;
+    const kmh = v => v == null ? null : units.wind === 'kmh' ? v : v / 1.852;
+    wwBody.replaceChildren(el('p', null,
+      `${fmt(kmh(o.speedKmh))} ${windLabel()} ${o.direction}, gusts ${fmt(kmh(o.gustKmh))} ${windLabel()} — ${o.station}, ${o.time}`));
+    wwBody.append(el('p', 'muted small', 'Data: WillyWeather'));
   }
 
-  // ── WillyWeather tides & observations (via relay) ─────────────────
-  function renderWw(data, at) {
-    wwCard.hidden = false;
-    wwBody.replaceChildren();
-    if (data.tides?.length) {
-      const p = el('p');
-      p.append(el('strong', null, 'Tides today: '));
-      p.append(data.tides.map(t => `${t.type === 'high' ? 'High' : 'Low'} ${t.time} ${fmt(t.height, 2)} m`).join(' · '));
-      wwBody.append(p);
-    }
-    if (data.observed) {
-      const o = data.observed;
-      const p = el('p');
-      p.append(el('strong', null, `Observed wind (${o.station}): `));
-      p.append(`${fmt(o.speedKn)} kn ${o.direction || ''}, gusts ${fmt(o.gustKn)} kn at ${o.time}`);
-      wwBody.append(p);
-    }
-    wwBody.append(el('p', 'muted small', `Fetched ${ageLabel(at)}`));
+  function renderFeed(data, at) {
+    feed = { data, at };
+    const updated = data.updated ? new Date(data.updated).getTime() : at;
+    renderWarnings(data.warnings || [], updated);
+    renderBom(data.bom);
+    renderWw(data.ww);
+    if (model) renderModel(model.data, model.at); // tide may now come from WillyWeather
   }
 
   // ── Loader: try live, fall back to cache ──────────────────────────
@@ -175,48 +344,75 @@
     if (!force && Date.now() - loadedAt < 10 * 60000) return;
     loadedAt = Date.now();
 
+    fetchJson(`${APP_CONFIG.dataUrl}?t=${Math.floor(Date.now() / 300000)}`)
+      .then(d => { cacheSet(FEED_CACHE, d); renderFeed(d, Date.now()); })
+      .catch(() => {
+        const c = cacheGet(FEED_CACHE);
+        if (c) renderFeed(c.data, c.at);
+        else {
+          warningsBody.replaceChildren(el('p', 'muted', 'Warnings unavailable — no signal. Check BOM when back in range.'));
+          bomBody.replaceChildren(el('p', 'muted', 'BOM forecast unavailable — no signal.'));
+        }
+      });
+
     loadModel()
       .then(d => { cacheSet(WX_CACHE, d); renderModel(d, Date.now()); })
       .catch(() => {
         const c = cacheGet(WX_CACHE);
-        if (c) { renderModel(c.data, c.at); wxUpdated.textContent += ' (offline — cached)'; }
+        if (c) { renderModel(c.data, c.at); wxUpdated.textContent += ' (offline — saved)'; }
         else wxNow.replaceChildren(el('p', 'muted', 'No signal and no saved forecast yet.'));
       });
-
-    if (!relay) {
-      bomUnavailable('Live BOM forecast appears here once the relay is set up.');
-      return;
-    }
-    fetchJson(`${relay}/bom`)
-      .then(d => { cacheSet(BOM_CACHE, d); renderBom(d, Date.now()); })
-      .catch(() => {
-        const c = cacheGet(BOM_CACHE);
-        if (c) renderBom(c.data, c.at); else bomUnavailable('Could not load the BOM forecast.');
-      });
-    fetchJson(`${relay}/ww`)
-      .then(d => { cacheSet(WW_CACHE, d); renderWw(d, Date.now()); })
-      .catch(() => { const c = cacheGet(WW_CACHE); if (c) renderWw(c.data, c.at); });
   }
 
-  // ── Windy live map (loaded only when the tab is first opened) ─────
-  function showMap(overlay) {
-    const src = 'https://embed.windy.com/embed.html?type=map&location=coordinates' +
-      `&metricRain=mm&metricTemp=%C2%B0C&metricWind=kt&zoom=10&overlay=${overlay}&product=ecmwf&level=surface` +
-      `&lat=${point.lat}&lon=${point.lon - 0.05}&detailLat=${point.lat}&detailLon=${point.lon}&marker=true`;
-    let frame = mapWrap.querySelector('iframe');
-    if (!frame) {
-      frame = el('iframe');
-      frame.title = 'Windy live map';
-      frame.loading = 'lazy';
-      mapWrap.append(frame);
+  // ── Live maps: one iframe per layer, kept loaded so switching is instant ──
+  const frames = {};
+
+  function mapSrc(layer) {
+    if (layer === 'radar') {
+      // RainViewer (BOM radar for Australia); oAP=1 starts the animation
+      return `https://www.rainviewer.com/map.html?loc=${point.lat},${point.lon},9&oFa=0&oC=1&oU=0&oCS=1&oF=0&oAP=1&c=3&o=83&lm=1&layer=radar&sm=1&sn=1`;
     }
-    frame.src = src;
+    // Centre east of the marker so Windy's detail popup isn't cut off at the right edge
+    return 'https://embed.windy.com/embed.html?type=map&location=coordinates' +
+      `&metricRain=mm&metricTemp=%C2%B0C&metricWind=${units.wind === 'kmh' ? 'km%2Fh' : 'kt'}` +
+      `&zoom=10&overlay=${layer}&product=ecmwf&level=surface` +
+      `&lat=${point.lat}&lon=${(point.lon + 0.07).toFixed(3)}&detailLat=${point.lat}&detailLon=${point.lon}&marker=true`;
   }
+
+  function showMap(layer) {
+    Object.entries(frames).forEach(([k, f]) => { f.hidden = k !== layer; });
+    if (!frames[layer]) {
+      const f = el('iframe');
+      f.title = `${layer} map`;
+      f.src = mapSrc(layer);
+      f.setAttribute('allow', 'fullscreen');
+      frames[layer] = f;
+      mapWrap.append(f);
+    }
+    mapCredit.textContent = layer === 'radar' ? 'Radar: RainViewer (BOM radar data)' : 'Map: Windy.com';
+  }
+
+  function resetWindyMaps() {
+    ['wind', 'waves'].forEach(k => { frames[k]?.remove(); delete frames[k]; });
+    if (!$('panel-weather').hidden) showMap(mapPills.querySelector('input:checked').value);
+  }
+
   mapPills.addEventListener('change', e => showMap(e.target.value));
 
   document.addEventListener('tabshown', e => {
     if (e.detail !== 'weather') return;
     load();
-    if (!mapWrap.querySelector('iframe')) showMap(mapPills.querySelector('input:checked').value);
+    if (!Object.keys(frames).length) showMap(mapPills.querySelector('input:checked').value);
   });
+  warnBanner.addEventListener('click', () => document.querySelector('[data-tab="weather"]').click());
+
+  // Warnings matter even if nobody opens the Weather tab: check on start-up,
+  // using the saved copy first so the badge shows straight away.
+  const savedFeed = cacheGet(FEED_CACHE);
+  if (savedFeed) renderFeed(savedFeed.data, savedFeed.at);
+  fetchJson(`${APP_CONFIG.dataUrl}?t=${Math.floor(Date.now() / 300000)}`)
+    .then(d => { cacheSet(FEED_CACHE, d); renderFeed(d, Date.now()); })
+    .catch(() => { /* offline — saved copy (if any) already shown */ });
+
+  window.sunEventForTest = sunEvent;
 })();

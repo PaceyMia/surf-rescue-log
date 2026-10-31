@@ -32,9 +32,8 @@ body {
   color: var(--white);
   font-family: 'Segoe UI', Arial, sans-serif;
   font-size: var(--font-base);
-  height: 100vh;   /* fallback for browsers without dvh support */
-  height: 100dvh;  /* dvh excludes mobile browser chrome — must come second to override */
-  overflow: hidden;
+  min-height: 100vh;   /* fallback for browsers without dvh support */
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
@@ -136,9 +135,7 @@ header {
 
 /* ── Main (scrollable log area only) ── */
 main {
-  flex: 1;        /* fill all space between shift-controls and footer */
-  min-height: 0;  /* allow flex child to shrink below content size */
-  overflow: hidden;
+  flex: 1;
   display: flex;
   flex-direction: column;
   padding: 0.5rem 0.6rem 0.4rem;
@@ -174,11 +171,9 @@ main {
   background-color: var(--light-bg);
   border-radius: 10px;
   padding: 0.5rem 0.6rem;
-  flex: 1;        /* grow to fill all of main */
-  min-height: 0;  /* allow shrinking so it never pushes footer off screen */
+  flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
 #log-section h2 {
@@ -195,14 +190,10 @@ main {
 
 #log-entries {
   flex: 1;
-  min-height: 0;
-  overflow-y: auto; /* only this element scrolls */
+  min-height: 30vh;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  /* Tidy scrollbar on desktop */
-  scrollbar-width: thin;
-  scrollbar-color: var(--navy) transparent;
 }
 
 #empty-msg {
@@ -214,6 +205,7 @@ main {
 }
 
 .log-entry {
+  scroll-margin-bottom: 170px; /* clear the sticky mic footer when scrolled into view */
   background-color: var(--entry-bg);
   border-left: 5px solid var(--navy);
   border-radius: 6px;
@@ -245,6 +237,10 @@ main {
 
 /* ── Footer (mic button thumb zone) ── */
 footer {
+  position: sticky; /* mic stays in the thumb zone while the log scrolls */
+  bottom: 0;
+  z-index: 15;
+  padding-bottom: max(0.6rem, env(safe-area-inset-bottom));
   background-color: var(--border);
   padding: 0.4rem 0.75rem 0.6rem;
   display: flex;
@@ -302,8 +298,6 @@ footer {
 /* ── Start screen (duty, date, crew) ── */
 #start-screen {
   flex: 1;
-  min-height: 0;
-  overflow-y: auto;
   width: 100%;
   max-width: 640px;
   margin: 0 auto;
@@ -479,15 +473,20 @@ footer {
 /* ── App shell: tabs + panels ── */
 #app {
   flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* Tabs (and the boundary bar) stay pinned once the header scrolls away */
+#sticky-top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
 #tabs {
   display: flex;
   background-color: var(--border);
-  flex-shrink: 0;
   border-bottom: 2px solid #4488CC;
 }
 
@@ -513,13 +512,11 @@ footer {
 
 .panel {
   flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
 .scroll-panel {
-  overflow-y: auto;
   padding: 0.6rem 0.6rem 1.2rem;
   gap: 0.6rem;
   width: 100%;
@@ -918,11 +915,11 @@ details.card:not([open]) summary {
 
 /* ── 2 NM boundary ── */
 #boundary-bar {
-  flex-shrink: 0;
-  margin-bottom: 0.4rem;
-  padding: 0.45rem 0.6rem;
+  display: block;
+  width: 100%;
+  padding: 0.4rem 0.7rem;
   border: none;
-  border-radius: 10px;
+  border-radius: 0;
   font: inherit;
   font-size: 0.8rem;
   font-weight: 800;
@@ -956,3 +953,164 @@ details.card:not([open]) summary {
 .m-boat    { stroke: var(--white); stroke-width: 2.5; fill: #0B6B3A; }
 .m-boat-warning { fill: #E0A800; }
 .m-boat-beyond  { fill: var(--red); }
+
+/* ── Weather tab v2 ── */
+.unit-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--white);
+}
+
+.small-pills .pill span {
+  min-height: 40px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+}
+
+#warn-badge {
+  color: var(--white);
+  background-color: var(--red);
+  border-radius: 999px;
+  padding: 0 0.35rem;
+  margin-left: 0.2rem;
+  font-size: 0.75rem;
+}
+
+#warning-banner {
+  display: block;
+  width: 100%;
+  margin-bottom: 0.4rem;
+  padding: 0.45rem 0.6rem;
+  border: none;
+  border-radius: 10px;
+  background-color: var(--red);
+  color: var(--white);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.warning-item {
+  display: block;
+  background-color: var(--red);
+  color: var(--white) !important;
+  text-decoration: none;
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.4rem;
+}
+
+.warning-item strong { display: block; }
+.warning-meta { display: block; font-size: 0.75rem; font-weight: 600; opacity: 0.9; }
+.all-clear { color: #0B6B3A; font-weight: 800; }
+
+.tile.tide-rising  { border-left: 5px solid #0B6B3A; }
+.tile.tide-falling { border-left: 5px solid #C77700; }
+
+.explain { margin-top: 0.3rem; font-size: 0.85rem; }
+.explain summary { cursor: pointer; font-weight: 800; color: #0047A0; min-height: 32px; }
+.explain p { margin-top: 0.3rem; }
+
+/* 24-hour strip */
+.strip-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+  background-color: var(--white);
+}
+
+.strip {
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.strip th {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background-color: #EEF3F9;
+  color: var(--navy);
+  font-weight: 800;
+  text-align: left;
+  padding: 0.3rem 0.45rem;
+  font-size: 0.72rem;
+  border-right: 2px solid #C9D6E5;
+}
+
+.strip td {
+  min-width: 2.7rem;
+  padding: 0.3rem 0.2rem;
+  text-align: center;
+  font-weight: 700;
+  border-bottom: 1px solid #E3EAF2;
+}
+
+.strip td.now { outline: 2px solid var(--navy); outline-offset: -2px; }
+.strip td.day-start { border-left: 3px solid var(--navy); }
+.strip .row-time td { font-weight: 900; font-size: 0.75rem; }
+.strip .row-sky td { font-size: 1.05rem; }
+.strip .row-wind td { font-weight: 900; color: #10233A; }
+.strip .row-gust td { color: #10233A; }
+.strip .row-tide td { font-size: 1rem; }
+.dir-arrow { display: inline-block; font-weight: 900; }
+.dir-text { display: block; font-size: 0.65rem; color: #4A5B70; }
+
+#map-wrap iframe[hidden] { display: none; }
+
+.source-links {
+  font-size: 0.8rem;
+  color: #C8D8EE;
+  text-align: center;
+}
+.source-links a { color: var(--yellow); font-weight: 700; }
+
+/* ── Job route & setup ── */
+#route-map {
+  width: 100%;
+  display: block;
+  margin-top: 0.4rem;
+  border-radius: 8px;
+}
+#route-map:empty { display: none; }
+.m-route { fill: none; stroke: #D7261E; stroke-width: 3; stroke-linejoin: round; stroke-dasharray: 8 5; }
+.m-from  { fill: #0B6B3A; stroke: var(--white); stroke-width: 2.5; }
+.m-to    { fill: var(--red); stroke: var(--white); stroke-width: 2.5; }
+.m-label-big { font-size: 11px; font-weight: 900; paint-order: stroke; stroke: #BFDDF2; stroke-width: 3px; }
+
+.perm-list { list-style: none; display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.5rem; }
+.perm-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0 0.5rem;
+  background-color: var(--white);
+  border-radius: 8px;
+  padding: 0.4rem 0.55rem;
+  border-left: 5px solid #8A99AA;
+}
+.perm-list small { grid-column: 1 / -1; color: #4A5B70; font-weight: 600; }
+.perm-list .perm-granted { border-left-color: #0B6B3A; }
+.perm-list .perm-denied  { border-left-color: var(--red); }
+.perm-list .perm-prompt  { border-left-color: #E0A800; }
+
+.legs { margin: 0.3rem 0 0.2rem 1.3rem; font-weight: 700; }
+.legs li + li { margin-top: 0.1rem; }
+
+/* Warning count sits on the tab corner so the label never wraps */
+#tabs [role="tab"] { position: relative; white-space: nowrap; }
+#warn-badge {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  margin: 0;
+  min-width: 1.2rem;
+  line-height: 1.2rem;
+  padding: 0 0.25rem;
+  font-size: 0.7rem;
+}

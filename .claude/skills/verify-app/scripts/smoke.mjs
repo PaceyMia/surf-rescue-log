@@ -58,12 +58,14 @@ const hours = Array.from({ length: 48 }, (_, i) => {
 const forecastFixture = {
   current: { wind_speed_10m: 14, wind_direction_10m: 22, wind_gusts_10m: 20, temperature_2m: 22 },
   hourly: { time: hours, wind_speed_10m: hours.map((_, i) => i === 6 ? 28 : 15), wind_direction_10m: hours.map(() => 22),
-            wind_gusts_10m: hours.map(() => 22), precipitation_probability: hours.map(() => 40), weather_code: hours.map(() => 3) },
-  daily: { sunrise: [hours[0].slice(0, 11) + '05:48'], sunset: [hours[0].slice(0, 11) + '19:28'] }
+            wind_gusts_10m: hours.map(() => 22), precipitation: hours.map((_, i) => i === 8 ? 1.2 : 0),
+            temperature_2m: hours.map(() => 22), weather_code: hours.map(() => 3) }
 };
 const marineFixture = {
   hourly: { time: hours, wave_height: hours.map(() => 1.6), swell_wave_height: hours.map(() => 1.2),
-            swell_wave_direction: hours.map(() => 180), swell_wave_period: hours.map(() => 9), sea_surface_temperature: hours.map(() => 20.5) }
+            swell_wave_direction: hours.map(() => 180), swell_wave_period: hours.map(() => 9), sea_surface_temperature: hours.map(() => 20.5),
+            // ~12.4 h tide cycle, rising at the current hour
+            sea_level_height_msl: hours.map((_, i) => Math.sin((i - 2) * 2 * Math.PI / 12.4) * 0.8) }
 };
 
 const results = [];
@@ -82,15 +84,19 @@ const context = await browser.newContext({
 await context.addInitScript(fakeSpeech);
 await context.route('**/api.open-meteo.com/**', r => r.fulfill({ json: forecastFixture }));
 await context.route('**/marine-api.open-meteo.com/**', r => r.fulfill({ json: marineFixture }));
-// Pretend the relay is deployed so the BOM and WillyWeather cards render
-await context.route('**/config.js', async r => {
-  const body = (await readFile(join(ROOT, 'config.js'), 'utf8')).replace("relayUrl: ''", "relayUrl: 'https://relay.test'");
-  await r.fulfill({ body, contentType: 'text/javascript' });
-});
-await context.route('https://relay.test/bom', r => r.fulfill({ json: { issued: 'Sat 10:00', areas: [{ name: 'Sydney Coast: Broken Bay to Port Hacking', synoptic: '',
-  periods: [{ label: 'Saturday 31 Oct', warning: 'Strong Wind Warning for Saturday for Sydney Coast', winds: 'Northerly 20 to 25 knots.', seas: '1.5 to 2 metres.', swell1: 'Southerly 1 to 1.5 metres.', swell2: '', weather: 'Partly cloudy.', caution: '' }] }] } }));
-await context.route('https://relay.test/ww', r => r.fulfill({ json: { location: 'Malabar', tides: [{ time: '07:50', height: 1.6, type: 'high' }, { time: '13:58', height: 0.5, type: 'low' }],
-  observed: { station: 'Little Bay', speedKn: 8, gustKn: 12, direction: 'NNE', time: '09:00' } } }));
+// Published weather.json (BOM forecast + warnings) from the weather-data branch
+const feedFixture = {
+  updated: new Date().toISOString(), errors: [],
+  bom: { issued: 'Sat 10:00', areas: [{ name: 'Sydney Coast: Broken Bay to Port Hacking', synoptic: '',
+    periods: [{ label: 'Saturday 31 Oct', warning: 'Strong Wind Warning for Saturday for Sydney Coast', winds: 'Northerly 20 to 25 knots.', seas: '1.5 to 2 metres.', swell1: 'Southerly 1 to 1.5 metres.', swell2: '', weather: 'Partly cloudy.', caution: '' }] }] },
+  warnings: [
+    { title: 'Strong Wind Warning for Saturday for Sydney Coast', area: 'Sydney Coast: Broken Bay to Port Hacking', source: 'BOM coastal waters forecast' },
+    { title: 'Hazardous Surf Warning for New South Wales', link: 'https://www.bom.gov.au/nsw/warnings/hazardoussurf.shtml', issued: 'Sat 04:19', source: 'BOM warnings' }
+  ],
+  ww: { location: 'Malabar', tides: [], observed: { station: 'Little Bay', speedKmh: 15, gustKmh: 22, direction: 'NNE', time: '09:00' } }
+};
+await context.route('https://raw.githubusercontent.com/**/weather.json*', r => r.fulfill({ json: feedFixture }));
+await context.route('**/www.rainviewer.com/**', r => r.fulfill({ body: '<html><body>radar</body></html>', contentType: 'text/html' }));
 await context.route('**/embed.windy.com/**', r => r.fulfill({ body: '<html><body>map</body></html>', contentType: 'text/html' }));
 const page = await context.newPage();
 page.on('dialog', d => d.accept());
@@ -277,17 +283,87 @@ await check('end of shift report has duty, crew, logged-off crew and positions',
 });
 
 // ── Tabs ───────────────────────────────────────────────────────────
-await check('weather tab shows conditions and highlights strong wind', async () => {
+await check('warnings show as a badge and a banner on the log', async () => {
+  await page.click('[data-tab="log"]');
+  await page.waitForSelector('#warning-banner:not([hidden])', { timeout: 5000 });
+  assert((await page.textContent('#warning-banner')).includes('Strong Wind Warning for Saturday for Sydney Coast (+1 more)'), 'banner text');
+  assert((await page.textContent('#warn-badge')).includes('2'), 'badge count');
+});
+
+await check('weather tab: warnings, now tiles, tide, sun and first/last light', async () => {
+  await page.click('#warning-banner');
+  assert(await page.isVisible('#panel-weather'), 'banner did not open weather tab');
+  await page.waitForSelector('.tile', { timeout: 5000 });
+  assert(await page.locator('.warning-item').count() === 2, 'warnings not listed');
+  const now = await page.textContent('#wx-now');
+  for (const want of ['14 kn NNE', '1.2 m S', '1.6 m', '20.5 °C', '↑ Rising', 'Sunrise · Sunset', 'First light · Last light']) {
+    assert(now.includes(want), `missing "${want}" in "${now}"`);
+  }
+  assert(/First light · Last light0[45]:\d\d · 19:\d\d|First light · Last light0[45]:\d\d · 20:\d\d/.test(now.replace(/\s+/g, '')) || now.includes('civil twilight'), 'first/last light times');
+  assert((await page.textContent('#bom-body')).includes('Strong Wind Warning for Saturday'), 'BOM forecast not shown');
+});
+
+await check('weather tab: 24-hour strip with coloured wind', async () => {
+  const cols = await page.locator('.strip .row-wind td').count();
+  assert(cols === 24, `expected 24 hours, got ${cols}`);
+  const bg = await page.locator('.strip .row-wind td').nth(4).evaluate(td => td.style.backgroundColor);
+  assert(bg, 'wind cell not coloured');
+});
+
+await check('wind units switch to km/h and are remembered', async () => {
+  await page.click('#wind-unit label:has-text("km/h")');
+  assert((await page.textContent('#wx-now')).includes('26 km/h NNE'), 'tiles not in km/h');
+  assert((await page.textContent('.strip .row-wind th')).includes('km/h'), 'strip not in km/h');
+  await page.reload();
   await page.click('[data-tab="weather"]');
   await page.waitForSelector('.tile', { timeout: 5000 });
-  const now = await page.textContent('#wx-now');
-  assert(now.includes('14 kn NNE') && now.includes('1.2 m S') && now.includes('20.5 °C'), `now "${now}"`);
-  assert(await page.locator('.wx-table tr.warn').count() >= 1, 'strong wind row not highlighted');
-  assert(await page.locator('#map-wrap iframe').count() === 1, 'map not loaded');
-  await page.waitForSelector('.bom-warning', { timeout: 5000 });
-  assert((await page.textContent('#bom-body')).includes('Strong Wind Warning for Saturday'), 'BOM warning not shown');
-  await page.waitForSelector('#ww-card:not([hidden])', { timeout: 5000 });
-  assert((await page.textContent('#ww-body')).includes('High 07:50 1.60 m'), 'tides not shown');
+  assert((await page.textContent('#wx-now')).includes('26 km/h'), 'units not remembered');
+  await page.click('#wind-unit label:has-text("knots")');
+});
+
+await check('live map keeps each layer loaded; radar replaces satellite', async () => {
+  assert(await page.locator('#map-pills input[value="satellite"]').count() === 0, 'satellite still there');
+  await page.click('#map-pills label:has-text("Waves")');
+  await page.click('#map-pills label:has-text("Radar")');
+  const frames = await page.$$eval('#map-wrap iframe', fs => fs.map(f => ({ src: f.src, hidden: f.hidden })));
+  assert(frames.length === 3, `expected 3 map frames, got ${frames.length}`);
+  assert(frames.filter(f => !f.hidden).length === 1 && frames.find(f => !f.hidden).src.includes('rainviewer') && frames.find(f => !f.hidden).src.includes('oAP=1'), 'radar not shown/autoplaying');
+  assert(frames.some(f => f.src.includes('overlay=waves')), 'waves layer missing');
+});
+
+await check('header scrolls away, tabs stay pinned', async () => {
+  assert(await page.$eval('#sticky-top', el => getComputedStyle(el).position) === 'sticky', 'tabs not sticky');
+  await page.evaluate(() => window.scrollTo(0, 2000));
+  const top = await page.$eval('#tabs', el => el.getBoundingClientRect().top);
+  const headerBottom = await page.$eval('header', el => el.getBoundingClientRect().bottom);
+  assert(Math.abs(top) < 2 && headerBottom <= 0, `tabs top ${top}, header bottom ${headerBottom}`);
+});
+
+await check('job route: Coogee to Ben Buckler by water with time at speed', async () => {
+  await page.click('[data-tab="tools"]');
+  await page.selectOption('#route-from', 'Coogee');
+  await page.selectOption('#route-to', 'Ben Buckler');
+  await page.fill('#route-speed', '20');
+  await page.waitForFunction(() => document.getElementById('route-result').textContent.includes('at 20 kn'));
+  const r = await page.textContent('#route-result');
+  const nm = parseFloat(r);
+  assert(nm > 2.1 && nm < 2.8 && /min at 20 kn/.test(r) && /Steer \d{3}°T/.test(r), `got "${r}"`);
+  assert(await page.locator('#route-map .m-route').count() === 1, 'route not drawn');
+});
+
+await check('job route goes around Cape Banks, not over land', async () => {
+  await page.selectOption('#route-from', 'Little Bay');
+  await page.selectOption('#route-to', 'La Perouse');
+  await page.waitForFunction(() => document.getElementById('route-result').textContent.includes('NM by water'));
+  const nm = parseFloat(await page.textContent('#route-result'));
+  assert(nm > 2.2, `Little Bay → La Perouse only ${nm} NM — cutting across land`);
+});
+
+await check('info tab shows the phone setup check', async () => {
+  await page.click('[data-tab="info"]');
+  await page.waitForFunction(() => document.querySelectorAll('#perm-list li').length === 3);
+  assert((await page.textContent('#perm-list')).includes('Location'), 'location row missing');
+  await page.click('[data-tab="tools"]');
 });
 
 await check('tools: speed/distance/time defaults to knots and NM', async () => {

@@ -1,0 +1,32 @@
+# Downloads OpenStreetMap coastline and place names for the route calculator
+# and publishes them on the `osm-data` branch. Run manually (or when the fetch
+# script changes); data-scripts/build_coast.py then turns them into coast.js.
+name: OSM data
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - data-scripts/fetch_osm.sh
+      - .github/workflows/osm-data.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download from Overpass
+        run: data-scripts/fetch_osm.sh out
+      - name: Publish to osm-data branch
+        run: |
+          cd out
+          git init -q -b osm-data
+          git config user.name "osm-data bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add features.json names.json seamarks.json
+          git commit -q -m "OSM data $(date -u +%FT%TZ) — © OpenStreetMap contributors, ODbL"
+          git push -q --force "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" osm-data
