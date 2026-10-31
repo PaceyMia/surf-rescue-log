@@ -32,9 +32,8 @@ body {
   color: var(--white);
   font-family: 'Segoe UI', Arial, sans-serif;
   font-size: var(--font-base);
-  height: 100vh;   /* fallback for browsers without dvh support */
-  height: 100dvh;  /* dvh excludes mobile browser chrome — must come second to override */
-  overflow: hidden;
+  min-height: 100vh;   /* fallback for browsers without dvh support */
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
@@ -136,9 +135,7 @@ header {
 
 /* ── Main (scrollable log area only) ── */
 main {
-  flex: 1;        /* fill all space between shift-controls and footer */
-  min-height: 0;  /* allow flex child to shrink below content size */
-  overflow: hidden;
+  flex: 1;
   display: flex;
   flex-direction: column;
   padding: 0.5rem 0.6rem 0.4rem;
@@ -174,11 +171,9 @@ main {
   background-color: var(--light-bg);
   border-radius: 10px;
   padding: 0.5rem 0.6rem;
-  flex: 1;        /* grow to fill all of main */
-  min-height: 0;  /* allow shrinking so it never pushes footer off screen */
+  flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
 #log-section h2 {
@@ -195,14 +190,10 @@ main {
 
 #log-entries {
   flex: 1;
-  min-height: 0;
-  overflow-y: auto; /* only this element scrolls */
+  min-height: 30vh;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  /* Tidy scrollbar on desktop */
-  scrollbar-width: thin;
-  scrollbar-color: var(--navy) transparent;
 }
 
 #empty-msg {
@@ -214,6 +205,7 @@ main {
 }
 
 .log-entry {
+  scroll-margin-bottom: 170px; /* clear the sticky mic footer when scrolled into view */
   background-color: var(--entry-bg);
   border-left: 5px solid var(--navy);
   border-radius: 6px;
@@ -245,6 +237,10 @@ main {
 
 /* ── Footer (mic button thumb zone) ── */
 footer {
+  position: sticky; /* mic stays in the thumb zone while the log scrolls */
+  bottom: 0;
+  z-index: 15;
+  padding-bottom: max(0.6rem, env(safe-area-inset-bottom));
   background-color: var(--border);
   padding: 0.4rem 0.75rem 0.6rem;
   display: flex;
@@ -302,8 +298,6 @@ footer {
 /* ── Start screen (duty, date, crew) ── */
 #start-screen {
   flex: 1;
-  min-height: 0;
-  overflow-y: auto;
   width: 100%;
   max-width: 640px;
   margin: 0 auto;
@@ -479,15 +473,20 @@ footer {
 /* ── App shell: tabs + panels ── */
 #app {
   flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* Tabs (and the boundary bar) stay pinned once the header scrolls away */
+#sticky-top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
 #tabs {
   display: flex;
   background-color: var(--border);
-  flex-shrink: 0;
   border-bottom: 2px solid #4488CC;
 }
 
@@ -513,13 +512,11 @@ footer {
 
 .panel {
   flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
 .scroll-panel {
-  overflow-y: auto;
   padding: 0.6rem 0.6rem 1.2rem;
   gap: 0.6rem;
   width: 100%;
@@ -918,11 +915,11 @@ details.card:not([open]) summary {
 
 /* ── 2 NM boundary ── */
 #boundary-bar {
-  flex-shrink: 0;
-  margin-bottom: 0.4rem;
-  padding: 0.45rem 0.6rem;
+  display: block;
+  width: 100%;
+  padding: 0.4rem 0.7rem;
   border: none;
-  border-radius: 10px;
+  border-radius: 0;
   font: inherit;
   font-size: 0.8rem;
   font-weight: 800;

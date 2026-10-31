@@ -74,12 +74,15 @@
   </form>
 
   <div id="app" hidden>
-    <nav id="tabs" role="tablist">
-      <button role="tab" data-tab="log" aria-selected="true">📝 Log</button>
-      <button role="tab" data-tab="weather" aria-selected="false">🌊 Weather</button>
-      <button role="tab" data-tab="tools" aria-selected="false">🧭 Tools</button>
-      <button role="tab" data-tab="info" aria-selected="false">ℹ️ Info</button>
-    </nav>
+    <div id="sticky-top">
+      <nav id="tabs" role="tablist">
+        <button role="tab" data-tab="log" aria-selected="true">📝 Log</button>
+        <button role="tab" data-tab="weather" aria-selected="false">🌊 Weather<span id="warn-badge" hidden></span></button>
+        <button role="tab" data-tab="tools" aria-selected="false">🧭 Tools</button>
+        <button role="tab" data-tab="info" aria-selected="false">ℹ️ Info</button>
+      </nav>
+      <button id="boundary-bar" type="button" hidden></button>
+    </div>
 
     <!-- ── Log tab ── -->
     <div id="panel-log" class="panel" role="tabpanel">
@@ -93,7 +96,7 @@
       </div>
 
       <main>
-        <button id="boundary-bar" type="button" hidden></button>
+        <button id="warning-banner" type="button" hidden></button>
         <button id="shift-summary" type="button" aria-label="Edit duty and crew"></button>
         <section id="log-section">
           <h2>Running Log</h2>
@@ -121,22 +124,33 @@
 
     <!-- ── Weather tab ── -->
     <section id="panel-weather" class="panel scroll-panel" role="tabpanel" hidden>
-      <div class="card" id="bom-card">
-        <h2>BOM Marine Forecast</h2>
-        <div id="bom-body"><p class="muted">Loading…</p></div>
+      <div class="unit-row">
+        <span>Wind in</span>
+        <div class="pills small-pills" id="wind-unit" role="radiogroup" aria-label="Wind units">
+          <label class="pill"><input type="radio" name="wind-unit" value="kn" /><span>knots</span></label>
+          <label class="pill"><input type="radio" name="wind-unit" value="kmh" /><span>km/h</span></label>
+        </div>
+      </div>
+
+      <div class="card" id="warnings-card">
+        <h2>Warnings</h2>
+        <div id="warnings-body"><p class="muted">Loading…</p></div>
       </div>
 
       <div class="card">
-        <h2>Conditions off Malabar <span id="wx-updated" class="muted small"></span></h2>
+        <h2>Now off Malabar <span id="wx-updated" class="muted small"></span></h2>
         <div id="wx-now"><p class="muted">Loading forecast…</p></div>
-        <div id="wx-table-wrap"></div>
-        <p class="muted small">Model forecast (Open-Meteo, ECMWF/BOM models). Wind in knots, swell in metres and seconds. Directions are where it comes <em>from</em>.</p>
+        <details class="explain">
+          <summary>Swell vs waves — what's the difference?</summary>
+          <p><strong>Swell</strong> is made by weather far away. It arrives as long, regular lines with a long period (the seconds between waves), keeps coming even on a calm day, and is what breaks on reefs and bommies.</p>
+          <p><strong>Waves</strong> here is everything combined: swell plus the short, choppy waves made by the local wind. It's roughly what you feel on the boat. (BOM's “Seas” means the wind waves only.)</p>
+        </details>
       </div>
 
-      <div class="card" id="ww-card" hidden>
-        <h2>Tides &amp; Observations</h2>
-        <div id="ww-body"></div>
-        <p class="muted small">Data: WillyWeather</p>
+      <div class="card">
+        <h2>Next 24 hours</h2>
+        <div id="wx-strip" class="strip-wrap"></div>
+        <p class="muted small">Swipe sideways for later hours. Directions are where it's coming <em>from</em>; arrows point where it's going.</p>
       </div>
 
       <div class="card">
@@ -145,21 +159,26 @@
           <label class="pill"><input type="radio" name="map" value="wind" checked /><span>Wind</span></label>
           <label class="pill"><input type="radio" name="map" value="waves" /><span>Waves</span></label>
           <label class="pill"><input type="radio" name="map" value="radar" /><span>Radar</span></label>
-          <label class="pill"><input type="radio" name="map" value="satellite" /><span>Satellite</span></label>
         </div>
         <div id="map-wrap"></div>
-        <p class="muted small">Map: Windy.com</p>
+        <p class="muted small" id="map-credit">Map: Windy.com</p>
       </div>
 
-      <div class="card">
-        <h2>BOM Links</h2>
-        <ul class="link-list">
-          <li><a href="https://www.bom.gov.au/nsw/forecasts/sydneywaters.shtml" target="_blank" rel="noopener">Sydney coastal &amp; local waters forecasts</a></li>
-          <li><a href="https://www.bom.gov.au/nsw/warnings/" target="_blank" rel="noopener">NSW warnings (marine wind, hazardous surf)</a></li>
-          <li><a href="https://www.bom.gov.au/products/IDR713.loop.shtml" target="_blank" rel="noopener">Sydney radar loop (Terrey Hills)</a></li>
-          <li><a href="https://www.bom.gov.au/australia/satellite/" target="_blank" rel="noopener">Satellite viewer</a></li>
-        </ul>
+      <div class="card" id="bom-card">
+        <h2>BOM Marine Forecast</h2>
+        <div id="bom-body"><p class="muted">Loading…</p></div>
       </div>
+
+      <div class="card" id="ww-card" hidden>
+        <h2>Observed Wind</h2>
+        <div id="ww-body"></div>
+      </div>
+
+      <p class="source-links">Full detail at BOM:
+        <a href="https://www.bom.gov.au/nsw/forecasts/sydneywaters.shtml" target="_blank" rel="noopener">Sydney waters</a> ·
+        <a href="https://www.bom.gov.au/nsw/warnings/" target="_blank" rel="noopener">Warnings</a> ·
+        <a href="https://www.bom.gov.au/products/IDR713.loop.shtml" target="_blank" rel="noopener">Radar loop</a>
+      </p>
     </section>
 
     <!-- ── Tools tab ── -->

@@ -61,6 +61,9 @@ const TAB_KEY = 'surfPatrolTab';
 
 function showTab(name) {
   storeSet(TAB_KEY, name);
+  // Start the new tab at its top, with the header scrolled away if it already was
+  const headerH = document.querySelector('header').offsetHeight;
+  if (window.scrollY > headerH) window.scrollTo(0, headerH);
   tabButtons.forEach(btn => {
     const active = btn.dataset.tab === name;
     btn.setAttribute('aria-selected', String(active));
@@ -430,7 +433,7 @@ function showStartScreen() {
   startCancel.hidden = !shift;
   appEl.hidden = true;
   startScreen.hidden = false;
-  startScreen.scrollTop = 0;
+  window.scrollTo(0, 0);
 }
 
 function showLogScreen() {

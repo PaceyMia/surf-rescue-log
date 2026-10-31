@@ -32,13 +32,18 @@ jobs:
       - name: Download BOM products (anonymous FTP)
         run: |
           mkdir -p bom
-          for f in IDN11001.xml IDN11013.xml IDZ00054.warnings_nsw.xml; do
+          for f in IDN11001.xml IDN11013.xml; do
             curl -sS --retry 3 -m 60 -o "bom/$f" "ftp://ftp.bom.gov.au/anon/gen/fwo/$f" || echo "::warning::could not download $f"
           done
-      - name: List BOM NSW products (for finding product IDs)
+      - name: Download current NSW warnings (anonymous FTP)
         run: |
-          mkdir -p out
-          curl -sS -m 60 --list-only "ftp://ftp.bom.gov.au/anon/gen/fwo/" | grep -E '^ID(N|Z)' | sort > out/fwo-index.txt || true
+          mkdir -p bom/warnings out
+          # Warning products (IDN2xxxx) only exist while a warning is current
+          curl -sS -m 60 --list-only "ftp://ftp.bom.gov.au/anon/gen/fwo/" | grep -E '^IDN2[0-9]{4}\.(xml|txt)$' > bom/warnings/index.txt || true
+          while read -r f; do
+            curl -sS --retry 2 -m 60 -o "bom/warnings/$f" "ftp://ftp.bom.gov.au/anon/gen/fwo/$f" || echo "::warning::could not download $f"
+          done < bom/warnings/index.txt
+          cp -r bom/warnings out/raw-warnings
       - name: Build weather.json
         env:
           WW_API_KEY: ${{ secrets.WW_API_KEY }}
@@ -50,6 +55,6 @@ jobs:
           git init -q -b weather-data
           git config user.name "weather-data bot"
           git config user.email "actions@users.noreply.github.com"
-          git add weather.json fwo-index.txt
+          git add weather.json raw-warnings
           git commit -q -m "Weather data $(date -u +%FT%TZ)"
           git push -q --force "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" weather-data
