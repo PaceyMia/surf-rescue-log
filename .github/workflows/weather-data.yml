@@ -1,6 +1,7 @@
 # Fetches BOM forecasts/warnings and WillyWeather data every 30 minutes and
-# publishes weather.json on the `weather-data` branch, which the app reads via
-# raw.githubusercontent.com. Keeps the WillyWeather key secret (repo secret
+# publishes weather.json on the `weather-data` branch, which the app reads from
+# https://raw.githubusercontent.com/SurfRescue30/surf-rescue-30-app/weather-data/weather.json
+# Keeps the WillyWeather key secret (repo secret
 # WW_API_KEY) without needing a server.
 name: Weather data
 

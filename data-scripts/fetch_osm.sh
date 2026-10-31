@@ -9,7 +9,7 @@ mkdir -p "$OUT"
 BBOX="-34.20,151.00,-33.76,151.36"
 ENDPOINTS=(https://overpass-api.de/api/interpreter https://overpass.kumi.systems/api/interpreter https://overpass.private.coffee/api/interpreter)
 # Overpass asks clients to identify themselves; anonymous requests get 406
-UA="surf-rescue-log/1.0 (+https://github.com/PaceyMia/surf-rescue-log)"
+UA="surf-rescue-30-app/1.0 (+https://github.com/SurfRescue30/surf-rescue-30-app)"
 
 # query <file> <overpass-ql>: try each server until one returns valid JSON
 query() {

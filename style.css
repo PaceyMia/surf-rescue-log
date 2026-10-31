@@ -1157,7 +1157,7 @@ button.warning-item { width: 100%; border: none; text-align: left; font: inherit
 @keyframes warn-flash { 0%, 30% { box-shadow: 0 0 0 4px var(--red); } 100% { box-shadow: 0 0 0 0 transparent; } }
 @media (prefers-reduced-motion: reduce) { .warn-detail.flash { animation: none; outline: 3px solid var(--red); } }
 
-/* ── Loading: a boat circling, seen from above ── */
+/* ── Loading: a boat circling, seen from above (small GPS spinner) ── */
 .boat-spinner {
   position: relative;
   width: 120px;
@@ -1186,6 +1186,10 @@ button.warning-item { width: 100%; border: none; text-align: left; font: inherit
 .boat-spinner.small::after { width: 12px; height: 6px; margin-left: -6px; }
 @keyframes boat-orbit { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .boat-spinner { animation-duration: 8s; } }
+/* Weather loading screen: figure of 8 drawn in the SVG itself */
+.boat-spinner.eight { width: 180px; height: 101px; animation: none; }
+.boat-spinner.eight::before, .boat-spinner.eight::after { content: none; }
+.boat-spinner.eight svg { display: block; width: 100%; height: 100%; overflow: visible; }
 
 .loading-screen {
   display: none;

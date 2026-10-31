@@ -47,20 +47,20 @@
 
     <fieldset class="start-group">
       <legend>Date</legend>
-      <input id="patrol-date" type="date" aria-label="Patrol date" required />
+      <input id="patrol-date" type="date" aria-label="Patrol date" />
     </fieldset>
 
     <fieldset class="start-group">
       <legend>Crew on board</legend>
       <div class="crew-row">
         <span class="award award-s" aria-hidden="true">S</span>
-        <input id="crew-skipper" type="text" placeholder="Skipper (required)" aria-label="Skipper"
-               list="crew-names" autocomplete="off" autocapitalize="words" enterkeyhint="next" required />
+        <input id="crew-skipper" type="text" placeholder="Skipper" aria-label="Skipper"
+               list="crew-names" autocomplete="off" autocapitalize="words" enterkeyhint="next" />
       </div>
       <div class="crew-row">
         <span class="award award-d" aria-hidden="true">D</span>
-        <input id="crew-driver" type="text" placeholder="Driver (required)" aria-label="Driver"
-               list="crew-names" autocomplete="off" autocapitalize="words" enterkeyhint="next" required />
+        <input id="crew-driver" type="text" placeholder="Driver" aria-label="Driver"
+               list="crew-names" autocomplete="off" autocapitalize="words" enterkeyhint="next" />
       </div>
       <div id="crew-extras"></div>
       <button id="add-crew-btn" class="ghost-btn" type="button">+ Add crew</button>
@@ -125,7 +125,24 @@
     <!-- ── Weather tab ── -->
     <section id="panel-weather" class="panel scroll-panel is-loading" role="tabpanel" hidden>
       <div class="loading-screen" id="wx-loading" role="status">
-        <div class="boat-spinner" aria-hidden="true"></div>
+        <!-- Boat driving a figure of 8, seen from above. animateMotion keeps it
+             on the wake line and turns the bow with the path -->
+        <div class="boat-spinner eight" aria-hidden="true">
+          <svg viewBox="0 0 160 90">
+            <path id="eight-wake" d="M80 45C100 15 150 15 150 45S100 75 80 45 10 15 10 45 60 75 80 45Z"
+                  fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="3" stroke-dasharray="6 6"/>
+            <g>
+              <g transform="translate(-21 -8.4) scale(0.7)">
+                <path d="M2 3H40L58 12L40 21H2Z" fill="white" stroke="#003366" stroke-width="2"/>
+                <rect x="14" y="7" width="16" height="10" rx="2" fill="#FFD200" stroke="#003366" stroke-width="1.5"/>
+                <path d="M3 3V21" stroke="#CC2200" stroke-width="4"/>
+              </g>
+              <animateMotion id="eight-motion" dur="3.6s" repeatCount="indefinite" rotate="auto">
+                <mpath href="#eight-wake"/>
+              </animateMotion>
+            </g>
+          </svg>
+        </div>
         <p>Loading weather…</p>
       </div>
       <div class="unit-row">

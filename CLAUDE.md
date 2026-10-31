@@ -2,6 +2,11 @@
 
 Mobile-first voice log and toolkit for the Surf Rescue 30 offshore rescue boat (Malabar, Sydney). Plain HTML/CSS/JS served as static files (GitHub Pages). No build step, no framework, no server. BOM and WillyWeather data come from a scheduled GitHub workflow that publishes `weather.json` to the `weather-data` branch.
 
+- Repo: https://github.com/SurfRescue30/surf-rescue-30-app (moved from PaceyMia/surf-rescue-log, Oct 2026)
+- Live app: https://surfrescue30.github.io/surf-rescue-30-app/
+- Weather data: https://raw.githubusercontent.com/SurfRescue30/surf-rescue-30-app/weather-data/weather.json
+- Stakeholder app guide: https://claude.ai/artifact/KcQsu3EAdzrB7qeMDWwYVr
+
 ## Constraints that drive every change
 - **Used on a boat.** Direct sunlight (high contrast only), wet fingers (≥48px targets, every swipe has a button equivalent), patchy signal.
 - **Must never lose an entry.** Recording saves a draft as words arrive; entries, shift and draft live in localStorage and survive reloads, screen lock and the app being closed.

@@ -69,7 +69,11 @@ function showTab(name) {
     btn.setAttribute('aria-selected', String(active));
     document.getElementById(`panel-${btn.dataset.tab}`).hidden = !active;
   });
-  document.dispatchEvent(new CustomEvent('tabshown', { detail: name }));
+  // At start-up the saved tab opens before weather.js, geofence.js and
+  // setup.js have loaded, so tell them once every script has run
+  const announce = () => document.dispatchEvent(new CustomEvent('tabshown', { detail: name }));
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', announce, { once: true });
+  else announce();
 }
 tabButtons.forEach(btn => btn.addEventListener('click', () => showTab(btn.dataset.tab)));
 
@@ -180,7 +184,7 @@ function removeEntry(entry) {
 
 // ── In-app confirmation ─────────────────────────────────────────────
 // Used instead of the browser's confirm(), which shows the site's web
-// address ("paceymia.github.io says…") above the question.
+// address ("surfrescue30.github.io says…") above the question.
 const confirmDialog = document.getElementById('confirm-dialog');
 function askConfirm(message, okLabel) {
   return new Promise(resolve => {
@@ -327,7 +331,7 @@ function parseDateValue(value) {
 }
 
 function dutyLabel(s) {
-  return s.duty === 'Other' ? `Other – ${s.dutyOther}` : s.duty;
+  return s.duty === 'Other' && s.dutyOther ? `Other – ${s.dutyOther}` : s.duty;
 }
 
 function shortTime(iso) {
@@ -427,7 +431,9 @@ function fillStartForm(s) {
   driverInput.value  = s ? s.driver : '';
   crewExtras.replaceChildren();
   if (s) s.crew.forEach(name => addCrewRow(name));
-  else for (let i = 0; i < 3; i++) addCrewRow();
+  // Always at least two crew rows (four spots with skipper and driver), so
+  // names skipped at the start can be filled in later
+  while (crewInputs().length < 2) addCrewRow();
 
   const off = s ? s.loggedOff : [];
   loggedOffMsg.hidden = !off.length;
@@ -461,11 +467,16 @@ function renderShiftSummary() {
   const date = parseDateValue(shift.date).toLocaleDateString('en-AU', {
     weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
   });
-  const crew = shift.crew.length ? ` · C: ${shift.crew.join(', ')}` : '';
+  // Nothing on the start screen is required, so leave out empty roles
+  const crew = [
+    shift.skipper && `S: ${shift.skipper}`,
+    shift.driver && `D: ${shift.driver}`,
+    shift.crew.length && `C: ${shift.crew.join(', ')}`
+  ].filter(Boolean).join(' · ') || 'Add crew';
   shiftSummary.innerHTML = '';
   const strong = document.createElement('strong');
   strong.textContent = `${dutyLabel(shift)} · ${date}`;
-  shiftSummary.append(strong, ` — S: ${shift.skipper} · D: ${shift.driver}${crew} ✎`);
+  shiftSummary.append(strong, ` — ${crew} ✎`);
 }
 
 function roster(s) {
@@ -473,7 +484,7 @@ function roster(s) {
     { role: 'S', name: s.skipper },
     { role: 'D', name: s.driver },
     ...s.crew.map(name => ({ role: 'C', name }))
-  ];
+  ].filter(r => r.name);
 }
 
 // Records who got off / on, so the log shows who was aboard when
@@ -507,23 +518,12 @@ startScreen.addEventListener('submit', (e) => {
   const clean = v => v.trim().replace(/\s+/g, ' ');
   const duty  = selectedDuty();
 
-  const missing = [];
-  if (duty === 'Other' && !clean(dutyOther.value)) missing.push([dutyOther, 'other duty']);
-  if (!patrolDate.value)                            missing.push([patrolDate, 'date']);
-  if (!clean(skipperInput.value))                   missing.push([skipperInput, 'skipper']);
-  if (!clean(driverInput.value))                    missing.push([driverInput, 'driver']);
-
-  if (missing.length) {
-    missing.forEach(([el]) => el.setAttribute('aria-invalid', 'true'));
-    startError.textContent = `Please enter the ${missing.map(m => m[1]).join(', ')}.`;
-    missing[0][0].focus();
-    return;
-  }
-
+  // Nothing is required: crew can be added later by tapping the crew bar,
+  // and a cleared date falls back to today
   const next = {
     duty,
     dutyOther: duty === 'Other' ? clean(dutyOther.value) : '',
-    date:      patrolDate.value,
+    date:      patrolDate.value || localDateValue(),
     skipper:   clean(skipperInput.value),
     driver:    clean(driverInput.value),
     crew:      crewInputs().map(i => clean(i.value)).filter(Boolean),
@@ -823,7 +823,7 @@ markBtn.addEventListener('click', async () => {
 // ── New Patrol ──────────────────────────────────────────────────────
 newPatrolBtn.addEventListener('click', async () => {
   const confirmed = await askConfirm(
-    'Start a new patrol? This clears the current log and crew. Send the End of Shift report first.', 'Start new patrol'
+    'Start a new patrol? This clears the current log and crew.', 'Start new patrol'
   );
   if (!confirmed) return;
 
@@ -845,9 +845,7 @@ function buildReportContent() {
   const crewLines = shift
     ? [
         'Crew on board:',
-        `  S  ${shift.skipper}`,
-        `  D  ${shift.driver}`,
-        ...shift.crew.map(name => `  C  ${name}`),
+        ...roster(shift).map(r => `  ${r.role}  ${r.name}`),
         ...(shift.loggedOff.length
           ? ['Logged off:', ...shift.loggedOff.map(o => `  ${o.role}  ${o.name} (off ${shortTime(o.at)})`)]
           : [])

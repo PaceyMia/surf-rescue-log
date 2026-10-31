@@ -4,7 +4,7 @@ from places_list import P
 out=[]
 for name,region,q,aliases,conf in P:
     url="https://nominatim.openstreetmap.org/search?"+urllib.parse.urlencode({"q":q,"format":"json","limit":1,"countrycodes":"au"})
-    req=urllib.request.Request(url,headers={"User-Agent":"surf-rescue-log-build/1.0 (github.com/PaceyMia/surf-rescue-log)"})
+    req=urllib.request.Request(url,headers={"User-Agent":"surf-rescue-30-app-build/1.0 (github.com/SurfRescue30/surf-rescue-30-app)"})
     try:
         d=json.load(urllib.request.urlopen(req,timeout=20))
     except Exception as e:

@@ -312,7 +312,7 @@ dd { margin: 0; max-width: 62ch; }
     <span class="eyebrow">Surf Rescue 30 · Malabar</span>
     <h1>Patrol Log Guide</h1>
     <p>What every part of the app does, for walking stakeholders through it. Tap a numbered marker on a screen, or a description, to highlight that part. Screens use example data: crew, entries and weather are samples.</p>
-    <span class="meta">Updated ${esc(updated)}${version ? ` · app version ${esc(version)}` : ''} · Live app: <a href="https://paceymia.github.io/surf-rescue-log/" target="_blank" rel="noopener">paceymia.github.io/surf-rescue-log</a></span>
+    <span class="meta">Updated ${esc(updated)}${version ? ` · app version ${esc(version)}` : ''} · Live app: <a href="https://surfrescue30.github.io/surf-rescue-30-app/" target="_blank" rel="noopener">surfrescue30.github.io/surf-rescue-30-app</a></span>
   </header>
   <nav class="jump" aria-label="Screens">${nav}</nav>
   ${sections}

@@ -338,6 +338,9 @@
 
   // ── Loading screen: hide the tab until the forecast and BOM data are in ──
   const panel = $('panel-weather');
+  // The figure-of-8 boat is SVG animation, which CSS can't slow, so honour
+  // Reduce Motion here
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) $('eight-motion')?.setAttribute('dur', '12s');
   const ready = new Set();
   function markReady(part) {
     ready.add(part);
@@ -424,6 +427,9 @@
 
   document.addEventListener('tabshown', e => {
     if (e.detail !== 'weather') return;
+    // Chrome freezes the boat for a second or two after the hidden tab is shown
+    // unless the figure-of-8 animation is restarted
+    if (panel.classList.contains('is-loading')) $('eight-motion')?.beginElement?.();
     load();
     if (mapObserver) mapObserver.observe(mapWrap);
     else if (!Object.keys(frames).length) showMap(mapPills.querySelector('input:checked').value);
