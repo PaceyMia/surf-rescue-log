@@ -9,14 +9,14 @@ import { writeFileSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const BOM_PRODUCTS = [
-  { file: 'IDN11001.xml', areas: ['NSW_MW004', 'NSW_MW003'] }, // Sydney, Illawarra coast
+  { file: 'IDN11001.xml', areas: ['NSW_MW004'] },              // Sydney Coast: Broken Bay to Port Hacking
   { file: 'IDN11013.xml', areas: ['NSW_MW009'] }               // Sydney Enclosed Waters
 ];
 const bomDir = process.argv[3] || 'bom';
 // Warnings that matter on the water off Sydney. Severe weather/thunderstorm
 // warnings can be anywhere in the state, so only keep those for our area.
 const MARINE = /marine wind|hazardous surf|gale|storm force|hurricane|tsunami|coastal hazard|damaging surf/i;
-const LOCAL_SEVERE = /severe (thunderstorm|weather).*(sydney|metropolitan|illawarra)/i;
+const LOCAL_SEVERE = /severe (thunderstorm|weather).*(sydney|metropolitan)/i;
 
 const decode = s => s.replace(/\s+/g, ' ').replace(/<!\[CDATA\[|\]\]>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
   .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#39;/g, "'").trim();
@@ -72,7 +72,7 @@ async function getBom() {
 // ── BOM warning products (IDN2xxxx, downloaded by the workflow) ──────
 // Each file only exists while its warning is current. Keep warnings that
 // cover our waters, and say which of our areas they apply to.
-const OUR_AREAS = /sydney coast|sydney enclosed|sydney closed|botany bay|illawarra coast|sydney metropolitan|sydney/i;
+const OUR_AREAS = /sydney coast|sydney enclosed|sydney closed|botany bay|sydney metropolitan|sydney/i;
 async function getWarnings() {
   const dir = join(bomDir, 'warnings');
   let files = [];

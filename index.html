@@ -123,7 +123,11 @@
     </div>
 
     <!-- ── Weather tab ── -->
-    <section id="panel-weather" class="panel scroll-panel" role="tabpanel" hidden>
+    <section id="panel-weather" class="panel scroll-panel is-loading" role="tabpanel" hidden>
+      <div class="loading-screen" id="wx-loading" role="status">
+        <div class="boat-spinner" aria-hidden="true"></div>
+        <p>Loading weather…</p>
+      </div>
       <div class="unit-row">
         <span id="wind-unit-label">Wind speed in</span>
         <div class="segmented" id="wind-unit" role="radiogroup" aria-labelledby="wind-unit-label">
@@ -164,11 +168,6 @@
         <div id="bom-body"><p class="muted">Loading…</p></div>
       </div>
 
-      <div class="card" id="warn-details-card" hidden>
-        <h2>Warning Details</h2>
-        <div id="warn-details"></div>
-      </div>
-
       <div class="card" id="ww-card" hidden>
         <h2>Observed Wind</h2>
         <div id="ww-body"></div>
@@ -186,25 +185,29 @@
       <div class="card">
         <h2>Job Route</h2>
         <p class="muted small">Distance, courses and time by water — follows channels and goes around headlands and rocks. Figure Eight Pools to Manly, the harbour's eastern bays, Botany Bay to Tom Uglys Bridge and Port Hacking.</p>
-        <div class="calc-grid">
-          <label>From<select id="route-from" aria-label="Start"></select></label>
-          <label>To<select id="route-to" aria-label="Job location"></select></label>
-          <label>Speed (kn)<input id="route-speed" type="number" inputmode="decimal" min="1" step="any" placeholder="e.g. 20" /></label>
+        <div class="route-fields">
+          <div class="picker">
+            <label for="route-from-input">From</label>
+            <input id="route-from-input" type="search" placeholder="Search a place, or use GPS" autocomplete="off"
+                   role="combobox" aria-expanded="false" aria-controls="route-from-list" aria-autocomplete="list" />
+            <ul class="picker-list" id="route-from-list" role="listbox" hidden></ul>
+            <select id="route-from" aria-hidden="true" tabindex="-1" hidden></select>
+          </div>
+          <div class="picker">
+            <label for="route-to-input">To</label>
+            <input id="route-to-input" type="search" placeholder="Search the job location" autocomplete="off"
+                   role="combobox" aria-expanded="false" aria-controls="route-to-list" aria-autocomplete="list" />
+            <ul class="picker-list" id="route-to-list" role="listbox" hidden></ul>
+            <select id="route-to" aria-hidden="true" tabindex="-1" hidden></select>
+          </div>
+          <label class="route-speed">Speed (kn)<input id="route-speed" type="number" inputmode="decimal" min="1" step="any" placeholder="e.g. 20" /></label>
         </div>
         <div id="route-result" class="result" aria-live="polite"></div>
         <svg id="route-map" role="img" aria-label="Map of the route by water"></svg>
       </div>
 
       <div class="card">
-        <h2>2 NM Boundary</h2>
-        <button id="boundary-toggle" class="tool-btn" type="button" aria-pressed="false">🛟 Boundary alarm: OFF</button>
-        <p id="boundary-readout" class="result">Alarm off.</p>
-        <svg id="boundary-map" role="img" aria-label="Map of the coast with the 2 nautical mile limit"></svg>
-        <p class="muted small">Measured from the nearest land, island, rock platform or reef (OpenStreetMap). Warns 500 m before the limit and again beyond it. Works while the app is open on screen. An aid only — the plotter is the authority.</p>
-      </div>
-
-      <div class="card">
-        <h2>Speed · Distance · Time</h2>
+        <h2>Calculator · Speed, Distance, Time</h2>
         <p class="muted small">Fill in any two — the third is calculated.</p>
         <div class="calc-grid">
           <label>Speed
@@ -227,18 +230,6 @@
       </div>
 
       <div class="card">
-        <h2>Position</h2>
-        <p id="pos-now" class="result">Tap “Get GPS” for current position.</p>
-        <button id="pos-get" class="tool-btn" type="button">📍 Get GPS</button>
-        <h3>Distance &amp; bearing to</h3>
-        <select id="pos-target" aria-label="Destination"></select>
-        <p id="pos-target-result" class="result" aria-live="polite"></p>
-        <h3>Convert a position</h3>
-        <input id="pos-convert" type="text" placeholder="e.g. 33 58.12 S 151 15.45 E or -33.9687, 151.2575" autocapitalize="off" />
-        <p id="pos-convert-result" class="result" aria-live="polite"></p>
-      </div>
-
-      <div class="card">
         <h2>Fuel &amp; Range</h2>
         <div class="calc-grid">
           <label>Fuel on board (L)<input id="fuel-onboard" type="number" inputmode="decimal" min="0" step="any" placeholder="450" /></label>
@@ -248,6 +239,14 @@
         <p id="fuel-result" class="result" aria-live="polite"></p>
         <p class="muted small">For long jobs: an extended search, a tow to Botany Bay, or a job outside the usual patrol area. It tells you how long you can stay out and how far you can go before you must turn back, keeping a third in reserve (rule of thirds: ⅓ out, ⅓ back, ⅓ reserve). Towing and heavy seas burn more — use a higher burn rate. Tank capacity 450 L.</p>
       </div>
+      <div class="card">
+        <h2>2 NM Boundary</h2>
+        <button id="boundary-toggle" class="tool-btn" type="button" aria-pressed="false">🛟 Boundary alarm: OFF</button>
+        <p id="boundary-readout" class="result">Alarm off.</p>
+        <svg id="boundary-map" role="img" aria-label="Map of the coast with the 2 nautical mile limit"></svg>
+        <p class="muted small">Measured from the nearest land, island, rock platform or reef (OpenStreetMap). Warns 500 m before the limit and again beyond it. Works while the app is open on screen. An aid only — the plotter is the authority.</p>
+      </div>
+
     </section>
 
     <!-- ── Info tab ── -->
@@ -349,16 +348,6 @@
         </table>
       </details>
 
-      <details class="card">
-        <summary>Patrol log form — condition categories</summary>
-        <dl class="facts">
-          <dt>Weather</dt><dd>Fine · Overcast · Raining</dd>
-          <dt>Sea</dt><dd>Calm · Chop · Moderate · Rough</dd>
-          <dt>Swell (m)</dt><dd>0–0.5 · 0.5–1.5 · 1.5–2.5 · 2.5+</dd>
-          <dt>Wind</dt><dd>Nil · Slight · Moderate · Strong</dd>
-          <dt>Statistics</dt><dd>Rescues · Preventions · Shark sightings · Searches/Lost · Call outs/13SURF · First aids</dd>
-        </dl>
-      </details>
     </section>
   </div>
 

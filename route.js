@@ -197,6 +197,69 @@
     if (saved.speed) speedIn.value = saved.speed;
   } catch { /* nothing saved */ }
 
+  // ── Searchable From / To pickers ──────────────────────────────────
+  // The hidden <select>s keep the chosen value; the search box filters the
+  // places as you type, grouped by area.
+  function makePicker(sel, input, list, includeGps) {
+    const label = v => v === 'gps' ? '📍 Current GPS position' : (placeById.get(v)?.name || '');
+    const syncInput = () => { input.value = label(sel.value); };
+    const open = on => { list.hidden = !on; input.setAttribute('aria-expanded', String(on)); };
+    const choose = value => {
+      sel.value = value;
+      syncInput();
+      open(false);
+      input.blur();
+      sel.dispatchEvent(new Event('change'));
+    };
+    const item = (value, text) => {
+      const li = document.createElement('li');
+      li.setAttribute('role', 'option');
+      li.dataset.value = value;
+      li.textContent = text;
+      // pointerdown so the choice lands before the search box loses focus
+      li.addEventListener('pointerdown', e => { e.preventDefault(); choose(value); });
+      li.addEventListener('click', () => choose(value));
+      return li;
+    };
+    function render(query) {
+      const q = query.trim().toLowerCase();
+      list.replaceChildren();
+      if (includeGps && (!q || 'current gps position'.includes(q))) list.append(item('gps', '📍 Current GPS position'));
+      COAST.routeRegions.forEach(region => {
+        const matches = places.map((p, i) => [p, i])
+          .filter(([p]) => p.region === region && (!q || p.name.toLowerCase().includes(q) || region.toLowerCase().includes(q)));
+        if (!matches.length) return;
+        const head = document.createElement('li');
+        head.className = 'picker-group';
+        head.setAttribute('role', 'presentation');
+        head.textContent = region;
+        list.append(head, ...matches.map(([p, i]) => item(String(i), p.name)));
+      });
+      if (!list.children.length) {
+        const none = document.createElement('li');
+        none.className = 'picker-empty';
+        none.textContent = 'No matching places';
+        list.append(none);
+      }
+      open(true);
+    }
+    input.addEventListener('focus', () => { input.select(); render(''); });
+    input.addEventListener('input', () => render(input.value));
+    input.addEventListener('blur', () => setTimeout(() => { open(false); syncInput(); }, 150));
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        const first = list.querySelector('[data-value]');
+        if (first) { e.preventDefault(); choose(first.dataset.value); }
+      } else if (e.key === 'Escape') {
+        open(false);
+        input.blur();
+      }
+    });
+    syncInput();
+  }
+  makePicker(fromSel, document.getElementById('route-from-input'), document.getElementById('route-from-list'), true);
+  makePicker(toSel, document.getElementById('route-to-input'), document.getElementById('route-to-list'), false);
+
   const pad3 = n => String(Math.round(n) % 360).padStart(3, '0');
   const fmtMins = h => { const m = Math.round(h * 60); return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`; };
 
@@ -206,7 +269,7 @@
     if (!to) { result.textContent = ''; svg.innerHTML = ''; return; }
     let from;
     if (fromSel.value === 'gps') {
-      result.textContent = 'Getting GPS fix…';
+      result.innerHTML = '<span class="boat-spinner small" aria-hidden="true"></span> Getting GPS fix…';
       const pos = await getPosition(15000);
       if (!pos) { result.textContent = '⚠️ GPS unavailable — pick a start place instead, or allow location access (Info tab).'; return; }
       from = { lat: pos.lat, lon: pos.lon, name: 'your position' };

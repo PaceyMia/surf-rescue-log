@@ -39,7 +39,6 @@
     try { localStorage.setItem(UNITS_KEY, JSON.stringify(units)); } catch { /* storage unavailable */ }
     if (model) renderModel(model.data, model.at);
     if (feed) renderFeed(feed.data, feed.at);
-    resetWindyMaps();
   });
 
   // ── Helpers ───────────────────────────────────────────────────────
@@ -117,6 +116,7 @@
         return {
           trend: next[0].type === 'high' ? 'rising' : 'falling',
           nextHigh: next.find(e => e.type === 'high'), nextLow: next.find(e => e.type === 'low'),
+          prev: events.filter(e => e.at <= now).pop(),
           source: 'WillyWeather'
         };
       }
@@ -139,8 +139,20 @@
     return {
       trend: next[0].type === 'high' ? 'rising' : 'falling',
       nextHigh: next.find(e => e.type === 'high'), nextLow: next.find(e => e.type === 'low'),
+      prev: events.filter(e => e.at <= now).pop(),
       source: 'model estimate'
     };
+  }
+
+  // The model estimate can be ~30–40 min off at the turn, so within the
+  // margin of a high or low say "Near high/low" rather than guess a direction
+  function tideHeadline(tide) {
+    const margin = (tide.source === 'model estimate' ? 45 : 15) * 60000;
+    const next = [tide.nextHigh, tide.nextLow].filter(Boolean).sort((a, b) => a.at - b.at)[0];
+    const prev = tide.prev;
+    if (next && next.at - Date.now() < margin) return next.type === 'high' ? '≈ Near high' : '≈ Near low';
+    if (prev && Date.now() - prev.at < margin) return prev.type === 'high' ? '≈ Near high' : '≈ Near low';
+    return tide.trend === 'rising' ? '↑ Rising' : '↓ Falling';
   }
 
   // ── Open-Meteo model forecast ─────────────────────────────────────
@@ -180,6 +192,7 @@
 
   function renderModel({ wx, sea }, at) {
     model = { data: { wx, sea }, at };
+    markReady('model');
     wxUpdated.textContent = `· ${ageLabel(at)}`;
     const h = wx.hourly, m = sea.hourly;
     const nowKey = sydneyKey(new Date());
@@ -197,12 +210,13 @@
       tile('Swell', `${fmt(m.swell_wave_height[si], 1)} m ${compass(m.swell_wave_direction[si])}`,
         `${fmt(m.swell_wave_period[si])} s period`),
       tide
-        ? tile('Tide', tide.trend === 'rising' ? '↑ Rising' : '↓ Falling',
-            [tide.nextHigh && `High ${hhmm(tide.nextHigh.at)}`, tide.nextLow && `Low ${hhmm(tide.nextLow.at)}`].filter(Boolean).join(' · '))
+        ? tile('Tide', tideHeadline(tide),
+            [tide.nextHigh && `High ${hhmm(tide.nextHigh.at)}`, tide.nextLow && `Low ${hhmm(tide.nextLow.at)}`].filter(Boolean).join(' · ') +
+            (tide.source === 'model estimate' ? ' (est.)' : ''))
         : tile('Tide', '–', 'no tide data'),
       tile('Water', `${fmt(m.sea_surface_temperature[si], 1)} °C`, c.temperature_2m != null ? `air ${fmt(c.temperature_2m)} °C` : ''),
-      tile('Sunrise · Sunset', `${sun.sunrise ? hhmm(sun.sunrise) : '–'} · ${sun.sunset ? hhmm(sun.sunset) : '–'}`, ''),
-      tile('First light · Last light', `${sun.firstLight ? hhmm(sun.firstLight) : '–'} · ${sun.lastLight ? hhmm(sun.lastLight) : '–'}`, '')
+      tile('Sunrise / Sunset', `${sun.sunrise ? hhmm(sun.sunrise) : '–'} · ${sun.sunset ? hhmm(sun.sunset) : '–'}`, ''),
+      tile('First / Last Light', `${sun.firstLight ? hhmm(sun.firstLight) : '–'} · ${sun.lastLight ? hhmm(sun.lastLight) : '–'}`, '')
     );
     wxNow.replaceChildren(grid);
 
@@ -270,7 +284,16 @@
   }
 
   // ── Feed: warnings + BOM forecast (+ WillyWeather) ────────────────
-  function renderWarnings(list, at) {
+  // Sydney waters only: drop Illawarra-only warnings and Illawarra from area lists
+  const SYDNEY = /sydney/i;
+  function sydneyWarnings(list) {
+    return list
+      .map(w => ({ ...w, area: (w.area || '').split(/,\s*/).filter(a => SYDNEY.test(a)).join(', ') }))
+      .filter(w => SYDNEY.test(`${w.title} ${w.area}`) || (!/illawarra/i.test(w.title) && !w.area));
+  }
+
+  function renderWarnings(all, at) {
+    const list = sydneyWarnings(all);
     // Collapsed by default: the summary line carries the count and the first warning
     warningsSummary.textContent = list.length
       ? `⚠️ ${list.length} warning${list.length > 1 ? 's' : ''} — ${list[0].title}`
@@ -280,38 +303,12 @@
     if (!list.length) {
       warningsBody.append(el('p', 'all-clear', '✓ No current marine warnings for Sydney waters.'));
     }
-    // Each warning jumps to its full details further down the tab
-    const details = $('warn-details');
-    details.replaceChildren();
-    $('warn-details-card').hidden = !list.length;
-    list.forEach((w, i) => {
-      const item = el('button', 'warning-item');
-      item.type = 'button';
+    list.forEach(w => {
+      const item = el('div', 'warning-item');
       item.append(el('strong', null, '⚠️ ' + w.title));
       const meta = [w.area, w.issued && `issued ${w.issued}`].filter(Boolean).join(' · ');
       if (meta) item.append(el('span', 'warning-meta', meta));
-      item.append(el('span', 'warning-more', 'Details ↓'));
-      item.addEventListener('click', () => {
-        const target = $(`warn-detail-${i}`);
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        target.classList.remove('flash');
-        void target.offsetWidth; // restart the highlight animation
-        target.classList.add('flash');
-      });
       warningsBody.append(item);
-
-      const box = el('div', 'warn-detail');
-      box.id = `warn-detail-${i}`;
-      box.append(el('h3', null, w.title));
-      if (meta) box.append(el('p', 'muted small', meta));
-      (w.detail || 'No further detail in the BOM data.').split('\n').filter(Boolean)
-        .forEach(line => box.append(el('p', null, line)));
-      if (w.link) {
-        const a = el('a', null, 'Full warning on the BOM website');
-        a.href = w.link; a.target = '_blank'; a.rel = 'noopener';
-        box.append(a);
-      }
-      details.append(box);
     });
     warningsBody.append(el('p', 'muted small', `BOM data checked ${ageLabel(at)}`));
 
@@ -329,7 +326,7 @@
     bomBody.replaceChildren();
     if (!bom?.areas?.length) { bomBody.append(el('p', 'muted', 'BOM forecast not available yet.')); return; }
     if (bom.issued) bomBody.append(el('p', 'muted small', `Issued ${bom.issued}`));
-    bom.areas.forEach(area => {
+    bom.areas.filter(a => /^Sydney Coast/i.test(a.name)).forEach(area => {
       bomBody.append(el('h3', null, area.name));
       area.periods.slice(0, 2).forEach(p => {
         const box = el('div', 'bom-period');
@@ -360,12 +357,23 @@
 
   function renderFeed(data, at) {
     feed = { data, at };
+    markReady('feed');
     const updated = data.updated ? new Date(data.updated).getTime() : at;
     renderWarnings(data.warnings || [], updated);
     renderBom(data.bom);
     renderWw(data.ww);
     if (model) renderModel(model.data, model.at); // tide may now come from WillyWeather
   }
+
+  // ── Loading screen: hide the tab until the forecast and BOM data are in ──
+  const panel = $('panel-weather');
+  const ready = new Set();
+  function markReady(part) {
+    ready.add(part);
+    if (ready.has('model') && ready.has('feed')) panel.classList.remove('is-loading');
+  }
+  // Never leave people stuck on the spinner: show whatever there is after 10 s
+  setTimeout(() => panel.classList.remove('is-loading'), 10000);
 
   // ── Loader: try live, fall back to cache ──────────────────────────
   async function load(force = false) {
@@ -380,6 +388,7 @@
         else {
           warningsBody.replaceChildren(el('p', 'muted', 'Warnings unavailable — no signal. Check BOM when back in range.'));
           bomBody.replaceChildren(el('p', 'muted', 'BOM forecast unavailable — no signal.'));
+          markReady('feed');
         }
       });
 
@@ -388,7 +397,7 @@
       .catch(() => {
         const c = cacheGet(WX_CACHE);
         if (c) { renderModel(c.data, c.at); wxUpdated.textContent += ' (offline — saved)'; }
-        else wxNow.replaceChildren(el('p', 'muted', 'No signal and no saved forecast yet.'));
+        else { wxNow.replaceChildren(el('p', 'muted', 'No signal and no saved forecast yet.')); markReady('model'); }
       });
   }
 
@@ -396,11 +405,13 @@
   const frames = {};
 
   function mapSrc(layer) {
-    // Centre east of the marker so Windy's detail popup isn't cut off at the right edge
+    // Radar is centred on Malabar (the dot overlay marks it). Wind/waves centre
+    // east of the marker so Windy's detail popup isn't cut off at the right edge
+    const lon = layer === 'radar' ? point.lon : point.lon + 0.07;
     return 'https://embed.windy.com/embed.html?type=map&location=coordinates' +
       `&metricRain=mm&metricTemp=%C2%B0C&metricWind=${units.wind === 'kmh' ? 'km%2Fh' : 'kt'}` +
       `&zoom=10&overlay=${layer}&product=${layer === 'radar' ? 'radar' : 'ecmwf'}&level=surface` +
-      `&lat=${point.lat}&lon=${(point.lon + 0.07).toFixed(3)}&detailLat=${point.lat}&detailLon=${point.lon}&marker=true`;
+      `&lat=${point.lat}&lon=${lon.toFixed(3)}&detailLat=${point.lat}&detailLon=${point.lon}&marker=true`;
   }
 
   function showMap(layer) {
@@ -413,22 +424,38 @@
       frames[layer] = f;
       mapWrap.append(f);
     }
+    // White dot = Malabar on the radar. It's only right while the map hasn't
+    // been moved, so it hides once the map is touched (the page loses focus).
+    radarDot.hidden = layer !== 'radar';
     mapCredit.textContent = layer === 'radar'
-      ? "Map: Windy.com — tap ▶ on the map to play the last hour of rain radar"
+      ? 'Map: Windy.com — white dot is Malabar; tap ▶ on the map to play the last hour of rain radar'
       : 'Map: Windy.com';
   }
-
-  function resetWindyMaps() {
-    ['wind', 'waves'].forEach(k => { frames[k]?.remove(); delete frames[k]; });
-    if (!$('panel-weather').hidden) showMap(mapPills.querySelector('input:checked').value);
-  }
+  const radarDot = el('div', 'radar-dot');
+  radarDot.hidden = true;
+  radarDot.setAttribute('aria-label', 'Malabar');
+  radarDot.append(el('span', 'radar-dot-label', 'Malabar'));
+  mapWrap.append(radarDot);
+  window.addEventListener('blur', () => {
+    if (document.activeElement && document.activeElement.tagName === 'IFRAME') radarDot.hidden = true;
+  });
 
   mapPills.addEventListener('change', e => showMap(e.target.value));
+
+  // Windy is heavy (it slowed the whole tab), so only load it when the map
+  // card scrolls into view
+  const mapObserver = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
+    if (entries.some(e => e.isIntersecting) && !Object.keys(frames).length) {
+      showMap(mapPills.querySelector('input:checked').value);
+      mapObserver.disconnect();
+    }
+  }, { rootMargin: '200px' }) : null;
 
   document.addEventListener('tabshown', e => {
     if (e.detail !== 'weather') return;
     load();
-    if (!Object.keys(frames).length) showMap(mapPills.querySelector('input:checked').value);
+    if (mapObserver) mapObserver.observe(mapWrap);
+    else if (!Object.keys(frames).length) showMap(mapPills.querySelector('input:checked').value);
   });
   warnBanner.addEventListener('click', () => document.querySelector('[data-tab="weather"]').click());
 
@@ -439,6 +466,9 @@
   fetchJson(`${APP_CONFIG.dataUrl}?t=${Math.floor(Date.now() / 300000)}`)
     .then(d => { cacheSet(FEED_CACHE, d); renderFeed(d, Date.now()); })
     .catch(() => { /* offline — saved copy (if any) already shown */ });
+
+  // Get the forecast ready in the background so the tab opens loaded
+  setTimeout(() => load(), 1500);
 
   window.sunEventForTest = sunEvent;
 })();

@@ -1156,3 +1156,138 @@ button.warning-item { width: 100%; border: none; text-align: left; font: inherit
 .warn-detail.flash { animation: warn-flash 1.6s ease-out; }
 @keyframes warn-flash { 0%, 30% { box-shadow: 0 0 0 4px var(--red); } 100% { box-shadow: 0 0 0 0 transparent; } }
 @media (prefers-reduced-motion: reduce) { .warn-detail.flash { animation: none; outline: 3px solid var(--red); } }
+
+/* ── Loading: a boat circling, seen from above ── */
+.boat-spinner {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  animation: boat-orbit 2.4s linear infinite;
+}
+.boat-spinner::before {            /* the wake circle */
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border: 3px dashed rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+}
+.boat-spinner::after {             /* the boat, bow pointing along the circle */
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 46px;
+  height: 20px;
+  margin-left: -23px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 24'%3E%3Cpath d='M2 3H40L58 12L40 21H2Z' fill='white' stroke='%23003366' stroke-width='2'/%3E%3Crect x='14' y='7' width='16' height='10' rx='2' fill='%23FFD200' stroke='%23003366' stroke-width='1.5'/%3E%3Cpath d='M3 3V21' stroke='%23CC2200' stroke-width='4'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.boat-spinner.small { display: inline-block; vertical-align: middle; width: 22px; height: 22px; margin-right: 0.3rem; }
+.boat-spinner.small::before { inset: 2px; border-width: 2px; border-color: rgba(0, 51, 102, 0.35); }
+.boat-spinner.small::after { width: 12px; height: 6px; margin-left: -6px; }
+@keyframes boat-orbit { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .boat-spinner { animation-duration: 8s; } }
+
+.loading-screen {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  min-height: 60vh;
+  color: var(--white);
+  font-weight: 800;
+}
+.panel.is-loading .loading-screen { display: flex; }
+.panel.is-loading > :not(.loading-screen) { display: none !important; }
+
+/* ── Job route: stacked, searchable From / To ── */
+.route-fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+@media (min-width: 700px) {
+  .route-fields { grid-template-columns: 1fr 1fr 10rem; align-items: end; }
+}
+.picker { position: relative; display: flex; flex-direction: column; gap: 0.2rem; }
+.picker label, .route-speed { font-weight: 800; font-size: 0.8rem; display: flex; flex-direction: column; gap: 0.2rem; }
+.picker input[type="search"] {
+  min-height: 48px;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--navy);
+  background-color: var(--white);
+  border: 2px solid var(--navy);
+  border-radius: 8px;
+}
+.picker-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 25;
+  max-height: 50vh;
+  overflow-y: auto;
+  margin-top: 2px;
+  list-style: none;
+  background-color: var(--white);
+  border: 2px solid var(--navy);
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(0, 20, 40, 0.35);
+}
+.picker-list [role="option"] {
+  padding: 0.65rem 0.7rem;
+  min-height: 44px;
+  font-weight: 700;
+  color: var(--navy);
+  border-bottom: 1px solid #E3EAF2;
+  cursor: pointer;
+}
+.picker-list [role="option"]:hover, .picker-list [role="option"]:active { background-color: #E8F0F8; }
+.picker-group {
+  position: sticky;
+  top: 0;
+  padding: 0.3rem 0.7rem;
+  background-color: var(--navy);
+  color: var(--yellow);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.picker-empty { padding: 0.7rem; color: #4A5B70; }
+
+/* ── Rain radar: white dot on Malabar until the map is moved ── */
+#map-wrap { position: relative; }
+.radar-dot {
+  position: absolute;
+  left: 50%;
+  top: 210px;                    /* centre of the 420 px map */
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background-color: var(--white);
+  border: 2px solid var(--navy);
+  box-shadow: 0 0 0 2px var(--white);
+  pointer-events: none;
+  z-index: 2;
+}
+.radar-dot-label {
+  position: absolute;
+  left: 16px;
+  top: -4px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--white);
+  text-shadow: 0 1px 2px #000;
+  white-space: nowrap;
+}
+
+/* ── Setup check: tappable rows ── */
+.perm-list li.tappable { cursor: pointer; }
+.perm-list li.tappable:focus-visible { outline: 3px solid var(--navy); outline-offset: 2px; }
+.perm-hint { grid-column: 1 / -1; color: #0047A0 !important; font-weight: 800 !important; text-decoration: underline; }
