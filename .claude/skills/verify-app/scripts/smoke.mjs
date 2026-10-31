@@ -134,7 +134,10 @@ await check('first load shows the start screen, not the log', async () => {
   assert(await page.isVisible('#start-screen'), 'start screen hidden');
   assert(!(await page.isVisible('#dictate-btn')), 'log controls visible before crew entered');
   assert(await page.isChecked('input[name="duty"][value="Patrol"]'), 'Patrol not the default duty');
-  assert(await page.locator('.crew-extra').count() === 3, 'expected 3 optional crew rows');
+  assert(await page.locator('.crew-extra').count() === 2, 'expected 2 crew rows (4 spots with skipper and driver)');
+  const ph = await page.$$eval('#start-screen input[type="text"]:not([hidden])', els => els.map(e => e.placeholder));
+  assert(ph[0] === 'Skipper' && ph[1] === 'Driver' && ph.slice(2).every(p => p === 'Crew (optional)'), `placeholders ${ph}`);
+  assert(await page.locator('#start-screen [required]').count() === 0, 'start screen still has required fields');
 });
 
 await check('date defaults to the local calendar date', async () => {
@@ -145,27 +148,28 @@ await check('date defaults to the local calendar date', async () => {
   assert(value === expected, `date ${value}, expected ${expected}`);
 });
 
-await check('skipper and driver are required', async () => {
+await check('nothing is required: an empty start screen opens the log', async () => {
   await page.click('#start-btn');
-  assert(await page.isVisible('#start-screen'), 'started without skipper/driver');
-  const err = await page.textContent('#start-error');
-  assert(/skipper/.test(err) && /driver/.test(err), `error was "${err}"`);
+  assert(await page.isVisible('#dictate-btn'), 'empty start screen did not open the log');
+  const summary = await page.textContent('#shift-summary');
+  assert(summary.includes('Patrol') && !summary.includes('S:') && !summary.includes('undefined'), `summary "${summary}"`);
+  await page.click('#shift-summary');
+  assert(await page.isVisible('#start-screen'), 'crew bar did not reopen the start screen');
+  assert(await page.locator('.crew-extra').count() === 2, 'crew rows missing when adding names later');
 });
 
-await check('Other duty opens a text box and requires it', async () => {
+await check('Other duty opens a text box', async () => {
   await page.click('label.pill:has-text("Other")');
   assert(await page.isVisible('#duty-other'), 'other text box not shown');
-  await page.fill('#crew-skipper', 'Matt Pacey');
-  await page.fill('#crew-driver', 'Marie Bowen');
-  await page.click('#start-btn');
-  assert(await page.isVisible('#start-screen'), 'started with empty Other duty');
   await page.click('label.pill:has-text("Patrol")');
   assert(!(await page.isVisible('#duty-other')), 'other text box still shown');
 });
 
-await check('add crew adds more rows than the default three', async () => {
+await check('add crew adds more rows than the default two', async () => {
+  await page.fill('#crew-skipper', 'Matt Pacey');
+  await page.fill('#crew-driver', 'Marie Bowen');
   await page.click('#add-crew-btn');
-  assert(await page.locator('.crew-extra').count() === 4, 'add crew did not add a row');
+  assert(await page.locator('.crew-extra').count() === 3, 'add crew did not add a row');
 });
 
 await check('start patrol opens the log with a crew summary', async () => {
@@ -366,6 +370,24 @@ await check('weather tab shows a loading screen until the data is in', async () 
   await ctx2.close();
 });
 
+await check('wind map loads when the app opens on the Weather tab', async () => {
+  const ctx3 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-AU', timezoneId: 'Australia/Sydney' });
+  await ctx3.route('**/api.open-meteo.com/**', r => r.fulfill({ json: forecastFixture }));
+  await ctx3.route('**/marine-api.open-meteo.com/**', r => r.fulfill({ json: marineFixture }));
+  await ctx3.route('https://raw.githubusercontent.com/**/weather.json*', r => r.fulfill({ json: feedFixture }));
+  await ctx3.route('**/embed.windy.com/**', r => r.fulfill({ body: '<html><body>map</body></html>', contentType: 'text/html' }));
+  await ctx3.addInitScript(() => {
+    localStorage.setItem('surfPatrolTab', 'weather');
+    localStorage.setItem('surfPatrolShift', JSON.stringify({ duty: 'Patrol', dutyOther: '', date: '2026-10-31', skipper: 'A', driver: 'B', crew: [], loggedOff: [] }));
+  });
+  const p3 = await ctx3.newPage();
+  await p3.goto(url);
+  await p3.waitForSelector('.tile', { timeout: 5000 });
+  await p3.evaluate(() => document.getElementById('map-wrap').scrollIntoView({ block: 'center' }));
+  await p3.waitForSelector('#map-wrap iframe[src*="overlay=wind"]', { timeout: 5000 });
+  await ctx3.close();
+});
+
 await check('tide prediction: Saturday 31 Oct high at about 12:56 at Fort Denison', async () => {
   const turns = await page.evaluate(() => {
     const from = Date.parse('2026-10-31T09:00:00+11:00');
@@ -447,6 +469,17 @@ await check('job route: Coogee to Ben Buckler by water with time at speed', asyn
   const nm = parseFloat(r);
   assert(nm > 1.9 && nm < 2.8 && /min at 20 kn/.test(r) && /Steer \d{3}°T/.test(r), `got "${r}"`);
   assert(await page.locator('#route-map .m-route').count() === 1, 'route not drawn');
+});
+
+await check('job route map shows both place names in full', async () => {
+  await pick('from', 'malabar b', 'Malabar Beach');
+  await pick('to', 'north cronulla', 'North Cronulla Beach');
+  await page.waitForFunction(() => document.getElementById('route-result').textContent.includes('NM by water'));
+  const labels = await page.$eval('#route-map', svg => {
+    const w = svg.viewBox.baseVal.width;
+    return [...svg.querySelectorAll('.m-label-big')].map(t => { const b = t.getBBox(); return { text: t.textContent, inside: b.x >= 0 && b.x + b.width <= w }; });
+  });
+  assert(labels.length === 2 && labels.every(l => l.inside), `labels ${JSON.stringify(labels)}`);
 });
 
 await check('job route reaches Grays Point up Port Hacking', async () => {

@@ -338,9 +338,19 @@
     out += `<path d="${path(r.pts)}" class="m-route"/>`;
     out += `<circle cx="${sx(from.lon)}" cy="${sy(from.lat)}" r="6" class="m-from"/>`;
     out += `<circle cx="${sx(to.lon)}" cy="${sy(to.lat)}" r="6" class="m-to"/>`;
-    const label = (p, text, anchor) => `<text x="${sx(p[1]) + (anchor === 'start' ? 9 : -9)}" y="${sy(p[0]) + 4}" text-anchor="${anchor}" class="m-label m-label-big">${text}</text>`;
-    out += label([from.lat, from.lon], from.name === 'your position' ? 'You' : from.name, 'end');
-    out += label([to.lat, to.lon], to.name, 'end');
+    // Label on whichever side of the dot has room, kept inside the map
+    // (about 7 px a character at this size)
+    const label = (p, text) => {
+      const x = sx(p[1]), w = text.length * 7;
+      let lx;
+      if (x - 9 - w >= 2) lx = x - 9 - w;
+      else if (x + 9 + w <= W - 2) lx = x + 9;
+      else lx = Math.max(2, Math.min(W - 2 - w, x - w / 2));
+      const ly = Math.max(12, Math.min(H - 4, sy(p[0]) + 4));
+      return `<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" class="m-label m-label-big">${text}</text>`;
+    };
+    out += label([from.lat, from.lon], from.name === 'your position' ? 'You' : from.name);
+    out += label([to.lat, to.lon], to.name);
     svg.setAttribute('viewBox', `0 0 ${W} ${H.toFixed(0)}`);
     svg.innerHTML = out;
   }

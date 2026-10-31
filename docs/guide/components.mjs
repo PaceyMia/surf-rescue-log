@@ -14,18 +14,18 @@ export const SCREENS = [
     components: [
       { selector: '#start-screen .start-group:nth-of-type(1)', title: 'Duty',
         what: 'Patrol, Training or Other, matching the Duty line on the paper Patrol Operations Log.',
-        use: 'Patrol is already selected. Tap Training or Other; Other opens a box to describe the duty and must be filled in.',
+        use: 'Patrol is already selected. Tap Training or Other; Other opens a box to describe the duty.',
         data: 'Saved on the device with the patrol.' },
       { selector: '#patrol-date', title: 'Date',
         what: 'The patrol date, defaulting to today.',
         use: 'Change it only when logging a patrol after the fact. Times on and off are not entered here; they are filled in afterwards.',
         data: 'The phone\'s local date (Sydney time).' },
       { selector: '#crew-skipper', title: 'Skipper (S) and Driver (D)',
-        what: 'The two required crew, using the award codes from the paper form.',
+        what: 'Skipper and driver, using the award codes from the paper form. Optional, like everything on this screen.',
         use: 'Type a name or pick one the phone remembers from earlier patrols.',
         data: 'Names are remembered on this device only.' },
       { selector: '#crew-extras', title: 'Crew (C)',
-        what: 'Optional crew rows: three to start, and as many more as needed.',
+        what: 'Optional crew rows: two to start (four spots with skipper and driver), and as many more as needed.',
         use: 'Tap ✕ to remove an empty row. Mid-patrol the button reads Log off and records the time that person left.',
         note: 'Crew changes are written into the log automatically, so the report shows who was on board when.' },
       { selector: '#add-crew-btn', title: '+ Add crew',
@@ -33,7 +33,7 @@ export const SCREENS = [
         use: 'Use it for extra crew or a replacement joining mid-patrol.' },
       { selector: '#start-btn', title: 'Start Patrol',
         what: 'Saves the duty, date and crew and opens the log.',
-        use: 'If skipper or driver is missing, the app says what to fill in and highlights it.' }
+        use: 'Nothing is required, so it always opens the log. Names left blank can be added later by tapping the crew bar.' }
     ]
   },
   {
@@ -52,7 +52,7 @@ export const SCREENS = [
         note: 'Works only while the app is open on screen; web apps get no GPS in the background. An aid only: the plotter is the authority.' },
       { selector: '#new-patrol-btn', title: 'New Patrol',
         what: 'Clears the log and crew and goes back to the start screen.',
-        use: 'Asks for confirmation first. Send the End of Shift report before using it.' },
+        use: 'Asks for confirmation first. Send the End of Shift report before using it, as the log is cleared.' },
       { selector: '#report-btn', title: 'End of Shift',
         what: 'Builds the shift report: duty, date, crew (including who logged off and when), every entry with its time and position.',
         use: 'Opens the phone\'s share sheet (email, Notes, Messages…). On a computer it downloads a text file.' },
@@ -151,7 +151,7 @@ export const SCREENS = [
         what: 'Distance by water, time at your speed, numbered courses (degrees true and distance for each leg), straight-line distance and ETA if leaving now.',
         note: 'Routes go around headlands and rocks, keep mid-channel and follow charted channels where mapped. There is no depth data, so check the chart in shallow water.' },
       { selector: '#route-map', title: 'Route map',
-        what: 'The route drawn over the coastline: green start, red job location, dashed red track.' },
+        what: 'The route drawn over the coastline: green start, red job location, dashed red track. Each place name sits on whichever side of its dot has room, so it is never cut off.' },
       { selector: '#sdt-speed', title: 'Calculator: Speed, Distance, Time',
         what: 'Fill in any two and the third is worked out. Knots and nautical miles by default; km/h and km available.',
         use: 'Time answers also show the ETA if leaving now.' },
