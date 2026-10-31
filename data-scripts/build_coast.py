@@ -18,7 +18,7 @@ for w in d['ways']:
     if len(pts) < 2: continue
     if nat == 'coastline':
         coast.append(LineString(pts))
-    elif nat in ('bare_rock', 'rock', 'reef', 'shoal'):
+    elif nat in ('bare_rock', 'rock', 'reef', 'shoal', 'mud', 'sandbar') or w['tags'].get('place') in ('island', 'islet'):
         g = Polygon(pts) if len(pts) >= 4 and pts[0] == pts[-1] else LineString(pts)
         outcrops.append(g.buffer(0) if g.geom_type == 'Polygon' else g)
 for p in d['points']:
@@ -203,6 +203,34 @@ if chan_lines:
             filled.append(l.buffer(40))
     chan_area = unary_union(filled)
     channel = shapely.contains_xy(chan_area, XX, YY)
+# Lateral marks: pair each port mark with its nearest starboard mark (<400 m);
+# the midpoints are channel "gates", chained into a centreline
+lat_marks = {'port': [], 'starboard': []}
+for e in marks:
+    t = e.get('tags', {})
+    typ = t.get('seamark:type', '')
+    if e['type'] == 'node' and typ in ('buoy_lateral', 'beacon_lateral'):
+        cat = t.get(f'seamark:{typ}:category')
+        if cat in lat_marks:
+            lat_marks[cat].append(P(e['lat'], e['lon']))
+gates = []
+if lat_marks['port'] and lat_marks['starboard']:
+    stb = np.array(lat_marks['starboard']); stb_tree = cKDTree(stb)
+    for pm in lat_marks['port']:
+        d, i = stb_tree.query(pm)
+        if d < 400:
+            gates.append(((pm[0] + stb[i][0]) / 2, (pm[1] + stb[i][1]) / 2))
+gate_lines = []
+if len(gates) > 1:
+    g = np.array(gates); g_tree = cKDTree(g)
+    for i, pt in enumerate(g):
+        for d, j in zip(*g_tree.query(pt, k=3)):
+            if 0 < d < 1200 and j > i:
+                gate_lines.append(LineString([tuple(pt), tuple(g[j])]))
+if gate_lines:
+    gate_area = unary_union([l.buffer(35) for l in gate_lines])
+    channel = channel | shapely.contains_xy(gate_area, XX, YY)
+print('lateral marks', {k: len(v) for k, v in lat_marks.items()}, 'gates', len(gates), 'gate links', len(gate_lines))
 cls = np.where(channel, 4, cls)
 grid = np.where(sea, cls, 0).astype(np.uint8)
 print('channel cells', int((grid == 4).sum()), 'from', len(chan_lines), 'charted lines')
@@ -232,10 +260,10 @@ def region_of(lat, lon):
         return 'Eastern beaches'
     if -34.03 < lat <= -33.93 and 151.105 <= lon < 151.244 and (lat > -34.012 or lon < 151.19):
         return 'Botany Bay & Georges River'
+    if -34.105 < lat <= -34.052 and 151.075 <= lon < 151.153:
+        return 'Port Hacking'
     if -34.075 < lat <= -33.995 and lon >= 151.145:
         return 'Kurnell & Cronulla'
-    if -34.105 < lat <= -34.045 and 151.075 <= lon < 151.17:
-        return 'Port Hacking'
     if -34.195 < lat <= -34.075 and lon >= 151.03:
         return 'Royal National Park'
     return None

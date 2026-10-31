@@ -1,7 +1,8 @@
 /* ── Surf Patrol Log – route.js ──
    Job route: distance and courses by water between two points, going around
-   headlands, islands and rock platforms (keeps ≥100 m off land). Uses the
-   navigable-water grid in coast.js (South Head → Cape Baily, incl. Botany Bay)
+   headlands, islands and rock platforms (keeps ≥50 m off land). Uses the
+   navigable-water grid in coast.js (Figure Eight Pools → Manly, incl. the
+   harbour's eastern bays, Botany Bay/Georges River and Port Hacking)
    and A* path-finding, then straightens the path into a few legs.
    An aid for planning — the plotter is the authority.
 */
@@ -12,16 +13,19 @@
   const { lat0, lon0, kx, ky } = nav.proj;
 
   // ── Grid ──────────────────────────────────────────────────────────
+  // 0 land, 1 open water, 2 within 200 m of land, 3 within 100 m, 4 charted channel
   const water = new Uint8Array(nav.rows * nav.cols);
   nav.data.forEach((row, r) => {
-    let c = 0, isWater = false;
-    row.split(',').forEach(n => {
-      const len = Number(n);
-      if (isWater) water.fill(1, r * nav.cols + c, r * nav.cols + c + len);
-      c += len;
-      isWater = !isWater;
+    let c = 0;
+    row.split(',').forEach(run => {
+      const [v, n] = run.split('x').map(Number);
+      if (v) water.fill(v, r * nav.cols + c, r * nav.cols + c + n);
+      c += n;
     });
   });
+  // No depth data, so stay mid-channel: water near shore costs more, charted
+  // fairways/recommended tracks cost less
+  const COST = [Infinity, 1, 1.25, 1.8, 0.7];
   const ox = (nav.origin[1] - lon0) * kx;
   const oy = (nav.origin[0] - lat0) * ky;
   const toXY = (lat, lon) => [(lon - lon0) * kx, (lat - lat0) * ky];
@@ -32,7 +36,7 @@
   };
   const centre = (r, c) => [ox + (c + 0.5) * nav.cellM, oy + (r + 0.5) * nav.cellM];
   const inGrid = (r, c) => r >= 0 && r < nav.rows && c >= 0 && c < nav.cols;
-  const isWater = (r, c) => inGrid(r, c) && water[r * nav.cols + c] === 1;
+  const isWater = (r, c) => inGrid(r, c) && water[r * nav.cols + c] > 0;
 
   // Nearest water cell (a beach or headland position is on land)
   function snap(lat, lon) {
@@ -58,7 +62,7 @@
     const came = new Int32Array(N).fill(-1);
     const closed = new Uint8Array(N);
     const idx = (r, c) => r * nav.cols + c;
-    const h = (r, c) => Math.hypot(r - goal[0], c - goal[1]);
+    const h = (r, c) => Math.hypot(r - goal[0], c - goal[1]) * COST[4]; // admissible with the cheapest cost
     const heap = []; // [f, index]
     const push = (f, i) => {
       heap.push([f, i]);
@@ -98,7 +102,7 @@
         // Don't cut diagonally past a land corner
         if (dr && dc && (!isWater(r + dr, c) || !isWater(r, c + dc))) continue;
         const ni = idx(rr, cc);
-        const ng = g[cur] + cost;
+        const ng = g[cur] + cost * COST[water[ni]];
         if (ng < g[ni]) { g[ni] = ng; came[ni] = cur; push(ng + h(rr, cc), ni); }
       }
     }
@@ -109,11 +113,15 @@
   }
 
   // Straight line of water cells between two cells?
-  function lineOfSight(a, b) {
+  // Straight line between two cells that never gets closer to shore than the
+  // path it replaces (so straightening doesn't undo the mid-channel routing)
+  function lineOfSight(a, b, worst) {
     const steps = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) * 2);
     for (let i = 1; i < steps; i++) {
-      const r = a[0] + (b[0] - a[0]) * i / steps, c = a[1] + (b[1] - a[1]) * i / steps;
-      if (!isWater(Math.round(r), Math.round(c))) return false;
+      const r = Math.round(a[0] + (b[0] - a[0]) * i / steps), c = Math.round(a[1] + (b[1] - a[1]) * i / steps);
+      if (!isWater(r, c)) return false;
+      const v = water[r * nav.cols + c];
+      if (v !== 4 && v > worst) return false;
     }
     return true;
   }
@@ -123,9 +131,15 @@
     const out = [path[0]];
     let anchor = 0;
     while (anchor < path.length - 1) {
-      let far = anchor + 1;
-      for (let j = path.length - 1; j > anchor + 1; j--) {
-        if (lineOfSight(path[anchor], path[j])) { far = j; break; }
+      // Scan forward, tracking the closest-to-shore class seen so far; stop
+      // once the straight line has failed for a while
+      let far = anchor + 1, worst = 1, misses = 0;
+      const at = k => water[path[k][0] * nav.cols + path[k][1]];
+      if (at(anchor) !== 4) worst = Math.max(worst, at(anchor));
+      for (let j = anchor + 1; j < path.length && misses < 40; j++) {
+        const v = at(j);
+        if (v !== 4 && v > worst) worst = v;
+        if (lineOfSight(path[anchor], path[j], worst)) { far = j; misses = 0; } else misses++;
       }
       out.push(path[far]);
       anchor = far;
@@ -159,19 +173,24 @@
   const result = document.getElementById('route-result');
   const svg = document.getElementById('route-map');
 
-  const inArea = p => {
-    if (p.lat == null) return false;
-    const [r, c] = cellOf(p.lat, p.lon);
-    return r >= -20 && r < nav.rows + 20 && c >= -40 && c < nav.cols + 5;
-  };
-  const places = PLACES.filter(inArea).sort((a, b) => a.name.localeCompare(b.name));
+  // Named beaches, bays and points from Figure Eight Pools to Manly, the
+  // harbour's eastern bays, Botany Bay/Georges River and Port Hacking
+  const places = COAST.routePlaces;
+  const placeById = new Map(places.map((p, i) => [String(i), p]));
   const option = (value, text) => { const o = document.createElement('option'); o.value = value; o.textContent = text; return o; };
-  fromSel.append(option('gps', '📍 Current GPS position'), ...places.map(p => option(p.name, p.name)));
-  toSel.append(option('', 'Choose job location…'), ...places.map(p => option(p.name, p.name)));
+  const groups = () => COAST.routeRegions.map(region => {
+    const g = document.createElement('optgroup');
+    g.label = region;
+    places.forEach((p, i) => { if (p.region === region) g.append(option(String(i), p.name)); });
+    return g;
+  }).filter(g => g.children.length);
+  fromSel.append(option('gps', '📍 Current GPS position'), ...groups());
+  toSel.append(option('', 'Choose job location…'), ...groups());
+  const findPlace = value => placeById.get(value);
 
   try {
     const saved = JSON.parse(localStorage.getItem(ROUTE_KEY)) || {};
-    if (saved.from) fromSel.value = saved.from;
+    if (saved.from && (saved.from === 'gps' || placeById.has(saved.from))) fromSel.value = saved.from;
     if (saved.speed) speedIn.value = saved.speed;
   } catch { /* nothing saved */ }
 
@@ -180,7 +199,7 @@
 
   async function calculate() {
     try { localStorage.setItem(ROUTE_KEY, JSON.stringify({ from: fromSel.value, speed: speedIn.value })); } catch { /* storage unavailable */ }
-    const to = PLACES.find(p => p.name === toSel.value);
+    const to = findPlace(toSel.value);
     if (!to) { result.textContent = ''; svg.innerHTML = ''; return; }
     let from;
     if (fromSel.value === 'gps') {
@@ -189,7 +208,7 @@
       if (!pos) { result.textContent = '⚠️ GPS unavailable — pick a start place instead, or allow location access (Info tab).'; return; }
       from = { lat: pos.lat, lon: pos.lon, name: 'your position' };
     } else {
-      const p = PLACES.find(x => x.name === fromSel.value);
+      const p = findPlace(fromSel.value);
       from = { lat: p.lat, lon: p.lon, name: p.name };
     }
     const r = route(from, to);
@@ -197,7 +216,7 @@
     result.replaceChildren();
     if (!r) {
       const nm = distanceNm(from.lat, from.lon, to.lat, to.lon);
-      result.textContent = `Outside the mapped water (South Head → Cape Baily). Straight line ${nm.toFixed(1)} NM, ${pad3(bearingDeg(from.lat, from.lon, to.lat, to.lon))}°T.`;
+      result.textContent = `No water route found (outside the mapped area). Straight line ${nm.toFixed(1)} NM, ${pad3(bearingDeg(from.lat, from.lon, to.lat, to.lon))}°T.`;
       svg.innerHTML = '';
       return;
     }
@@ -227,7 +246,7 @@
     const extra = document.createElement('div');
     extra.className = 'muted small';
     const eta = kn > 0 ? new Date(Date.now() + r.nm / kn * 3600000).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false }) : null;
-    extra.textContent = `Straight line ${r.straightNm.toFixed(1)} NM${eta ? ` · ETA if leaving now ${eta}` : ''} · keeps 100 m off land and rocks`;
+    extra.textContent = `Straight line ${r.straightNm.toFixed(1)} NM${eta ? ` · ETA if leaving now ${eta}` : ''} · keeps 50 m off land and rocks`;
     result.append(big, legs, extra);
     draw(r, from, to);
   }

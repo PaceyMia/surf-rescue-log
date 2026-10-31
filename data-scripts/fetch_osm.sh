@@ -60,6 +60,16 @@ query "$OUT/seamarks.json" "[out:json][timeout:240];
 );
 out geom;" || echo '{"elements":[]}' > "$OUT/seamarks.json"
 
+# Estuary water areas — OSM's coastline crosses some river mouths (e.g. Port
+# Hacking), with the water behind mapped as natural=water instead
+query "$OUT/water.json" "[out:json][timeout:240];
+(
+  way[\"natural\"=\"water\"][\"water\"~\"^(river|estuary|bay|lagoon|basin)$\"](-34.115,151.03,-33.92,151.20);
+  relation[\"natural\"=\"water\"][\"water\"~\"^(river|estuary|bay|lagoon|basin)$\"](-34.115,151.03,-33.92,151.20);
+  way[\"natural\"=\"bay\"][\"name\"~\"Port Hacking|Gunnamatta|Gymea|Yowie|Burraneer|Dolans|Port Hacking\"](-34.115,151.03,-34.04,151.17);
+);
+out geom;" || echo '{"elements":[]}' > "$OUT/water.json"
+
 # Shape features into the format build_coast.py expects
 python3 - "$OUT" <<'PY'
 import json, sys
