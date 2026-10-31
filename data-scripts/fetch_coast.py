@@ -22,7 +22,7 @@ KEEP_NAT={'coastline','bare_rock','rock','reef','shoal','stone','cliff'}
 for k,(lat,lon) in enumerate(sorted(tiles)):
     bbox=f"{lon-HALF:.4f},{lat-HALF:.4f},{lon+HALF:.4f},{lat+HALF:.4f}"
     url=f"https://api.openstreetmap.org/api/0.6/map?bbox={bbox}"
-    req=urllib.request.Request(url,headers={"User-Agent":"surf-rescue-log-build/1.0 (github.com/PaceyMia/surf-rescue-log)"})
+    req=urllib.request.Request(url,headers={"User-Agent":"surf-rescue-30-app-build/1.0 (github.com/SurfRescue30/surf-rescue-30-app)"})
     for attempt in range(3):
         try:
             root=ET.fromstring(urllib.request.urlopen(req,timeout=90).read()); break

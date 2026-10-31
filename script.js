@@ -180,7 +180,7 @@ function removeEntry(entry) {
 
 // ── In-app confirmation ─────────────────────────────────────────────
 // Used instead of the browser's confirm(), which shows the site's web
-// address ("paceymia.github.io says…") above the question.
+// address ("surfrescue30.github.io says…") above the question.
 const confirmDialog = document.getElementById('confirm-dialog');
 function askConfirm(message, okLabel) {
   return new Promise(resolve => {

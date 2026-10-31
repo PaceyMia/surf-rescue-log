@@ -5,7 +5,7 @@
    without it.
 */
 const APP_CONFIG = {
-  dataUrl: 'https://raw.githubusercontent.com/PaceyMia/surf-rescue-log/weather-data/weather.json',
+  dataUrl: 'https://raw.githubusercontent.com/SurfRescue30/surf-rescue-30-app/weather-data/weather.json',
   // Forecast point just offshore of Malabar, inside the patrol area
   forecastPoint: { lat: -33.97, lon: 151.27, name: 'off Malabar' }
 };

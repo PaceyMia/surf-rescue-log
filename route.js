@@ -243,9 +243,11 @@
       }
       open(true);
     }
-    input.addEventListener('focus', () => { input.select(); render(''); });
+    // A quick tap back into the box must cancel the close queued by the blur
+    let closeTimer;
+    input.addEventListener('focus', () => { clearTimeout(closeTimer); input.select(); render(''); });
     input.addEventListener('input', () => render(input.value));
-    input.addEventListener('blur', () => setTimeout(() => { open(false); syncInput(); }, 150));
+    input.addEventListener('blur', () => { closeTimer = setTimeout(() => { open(false); syncInput(); }, 150); });
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
         const first = list.querySelector('[data-value]');
