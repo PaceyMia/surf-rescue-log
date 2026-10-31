@@ -12,7 +12,7 @@ import { join, extname, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { execSync } from 'node:child_process';
-import { SCREENS } from './components.mjs';
+import { SCREENS, EXPLAINERS } from './components.mjs';
 
 const { chromium } = createRequire(import.meta.url)('playwright');
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -146,13 +146,16 @@ await page.waitForTimeout(300);
 // Weather (warnings opened so the list shows)
 await page.click('[data-tab="weather"]');
 await page.waitForSelector('.tile');
-await page.waitForSelector('#warn-details-card:not([hidden])');
+await page.click('#warnings-summary');
 shots.weather = await shoot(byId('weather'));
 
 // Tools with a worked job route
 await page.click('[data-tab="tools"]');
-await page.selectOption('#route-from', { label: 'Coogee Beach' });
-await page.selectOption('#route-to', { label: 'Ben Buckler Headland' });
+for (const [which, typed, name] of [['from', 'coogee', 'Coogee Beach'], ['to', 'ben buck', 'Ben Buckler Headland']]) {
+  await page.click(`#route-${which}-input`);
+  await page.fill(`#route-${which}-input`, typed);
+  await page.click(`#route-${which}-list [role="option"]:text-is("${name}")`);
+}
 await page.fill('#route-speed', '20');
 await page.waitForFunction(() => document.getElementById('route-result').textContent.includes('at 20 kn'));
 shots.tools = await shoot(byId('tools'));
@@ -215,7 +218,19 @@ const sections = ordered.map(s => {
     </section>`;
 }).join('');
 
-const nav = ordered.map(s => `<a href="#${s.id}">${esc(s.title)}</a>`).join('');
+const explainers = EXPLAINERS.map(x => `
+    <section class="screen explainer" id="${x.id}" aria-labelledby="${x.id}-title">
+      <header class="screen-head">
+        <h2 id="${x.id}-title">${esc(x.title)}</h2>
+        <p>${esc(x.blurb)}</p>
+      </header>
+      <div class="timeline">${x.rows.map(r => `
+        <div class="tl-row"><h3>${esc(r.when)}</h3><p>${esc(r.what)}</p></div>`).join('')}
+      </div>
+      ${x.note ? `<p class="tl-note">${esc(x.note)}</p>` : ''}
+    </section>`).join('');
+
+const nav = [...ordered, ...EXPLAINERS].map(s => `<a href="#${s.id}">${esc(s.title)}</a>`).join('');
 
 const html = `<title>SR30 Patrol Log Guide</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -282,6 +297,14 @@ nav.jump a:hover, nav.jump a:focus-visible { border-color: var(--navy); outline:
 @media (max-width: 420px) { .row { grid-template-columns: minmax(0, 1fr); gap: 0; } }
 dt { font: 700 12px/1.6 var(--text); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 dd { margin: 0; max-width: 62ch; }
+.timeline { display: grid; gap: 0; margin-top: 18px; max-width: 760px; border-left: 3px solid var(--navy); }
+.tl-row { position: relative; padding: 4px 0 18px 22px; }
+.tl-row::before { content: ""; position: absolute; left: -9px; top: 8px; width: 15px; height: 15px; border-radius: 50%;
+  background: var(--yellow); border: 2px solid var(--navy); }
+.tl-row h3 { margin: 0 0 4px; font: 800 19px/1.15 var(--display); text-transform: uppercase; letter-spacing: .02em; }
+.tl-row p { margin: 0; max-width: 62ch; }
+.tl-note { max-width: 65ch; margin: 6px 0 0; padding: 10px 14px; border-radius: 10px; background: var(--surface);
+  border: 1.5px solid var(--line); color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
 </style>
 <div class="wrap">
@@ -293,6 +316,7 @@ dd { margin: 0; max-width: 62ch; }
   </header>
   <nav class="jump" aria-label="Screens">${nav}</nav>
   ${sections}
+  ${explainers}
 </div>
 <script>
 (() => {

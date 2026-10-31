@@ -96,10 +96,11 @@ export const SCREENS = [
     components: [
       { selector: '.unit-row', title: 'Wind speed units',
         what: 'Knots or km/h. The selected one is filled yellow with a tick.',
-        use: 'Each phone remembers its own choice. Applies to the tiles, the 24-hour strip, observed wind and the Windy map.' },
+        use: 'Each phone remembers its own choice. Applies to the tiles, the 24-hour strip and observed wind.',
+        note: 'The Windy map keeps the units it opened with; it has its own unit setting on the map legend.' },
       { selector: '#warnings-card', title: 'Warnings',
-        what: 'Current BOM warnings that cover Sydney Coast, Sydney Enclosed Waters or the Illawarra: strong wind, gale, hazardous surf, and severe weather for Sydney.',
-        use: 'Collapsed to one line to save room. Tap to open; tap a warning to jump to its full details at the bottom of the tab.',
+        what: 'Current BOM warnings for Sydney waters (Sydney Coast and Sydney Enclosed Waters): strong wind, gale, hazardous surf, and severe weather for Sydney.',
+        use: 'Collapsed to one line to save room; tap to see the list.',
         data: 'BOM via its public FTP service, fetched every 30 minutes by a GitHub job.',
         note: 'If there is no signal, the last saved copy is shown with its age.' },
       { selector: '#wx-now .tile:nth-child(1)', title: 'Wind',
@@ -109,29 +110,26 @@ export const SCREENS = [
         what: 'Ocean swell height, direction and period (seconds between waves).',
         data: 'Open-Meteo marine model.' },
       { selector: '#wx-now .tile:nth-child(3)', title: 'Tide',
-        what: 'Whether the tide is rising or falling, and the next high and low.',
-        data: 'WillyWeather tide predictions once the WW_API_KEY secret is added; until then an Open-Meteo sea-level estimate.',
-        note: 'The estimate can be 20–40 minutes out.' },
+        what: 'Rising or falling, and the next high and low in 24-hour time. Within about 45 minutes of a turn it says "Near high" or "Near low" instead of guessing a direction.',
+        data: 'WillyWeather tide predictions once the WW_API_KEY secret is added; until then an Open-Meteo sea-level estimate, marked (est.).',
+        note: 'The estimate can be 30–40 minutes out, which is why it showed falling before the 1 pm high. WillyWeather fixes this.' },
       { selector: '#wx-now .tile:nth-child(4)', title: 'Water',
         what: 'Sea surface temperature, with air temperature.' },
-      { selector: '#wx-now .tile:nth-child(5)', title: 'Sunrise · Sunset',
+      { selector: '#wx-now .tile:nth-child(5)', title: 'Sunrise / Sunset',
         what: 'Calculated on the phone for Malabar, so it works without signal.' },
-      { selector: '#wx-now .tile:nth-child(6)', title: 'First light · Last light',
+      { selector: '#wx-now .tile:nth-child(6)', title: 'First / Last Light',
         what: 'Civil twilight: when it is light enough to work without lights.',
         data: 'Calculated on the phone.' },
       { selector: '#wx-strip', title: 'Next 24 hours',
         what: 'Hour-by-hour strip: sky, temperature, rain, wind and gusts (coloured by strength), wind direction arrows, swell height, period and direction, and tide direction.',
         use: 'Swipe sideways for later hours. The outlined column is now; a thick line marks midnight.' },
       { selector: '#map-pills', title: 'Live map',
-        what: 'Windy map with Wind, Waves and Rain radar layers, centred on Malabar.',
-        use: 'Each layer stays loaded, so switching is instant. On Rain radar, tap ▶ to play the last hour.',
+        what: 'Windy map with Wind, Waves and Rain radar layers.',
+        use: 'Loads when you scroll to it, so the rest of the tab is quick. Each layer stays loaded once opened. On Rain radar a white dot marks Malabar (it hides once you move the map); tap ▶ to play the last hour.',
         note: 'Windy\'s free embed has no autoplay setting.' },
       { selector: '#bom-card', title: 'BOM Marine Forecast',
-        what: 'The official BOM forecast for Sydney Coast, Illawarra Coast and Sydney Enclosed Waters: winds, seas, swell, weather and cautions for today and tomorrow.',
-        data: 'BOM coastal and local waters forecasts (FTP), every 30 minutes.' },
-      { selector: '#warn-details-card', title: 'Warning details',
-        what: 'The full text of each warning: the situation, which coasts it covers and BOM\'s advice, with a link to the warning on the BOM website.',
-        use: 'Reached by tapping a warning at the top of the tab.' },
+        what: 'The official BOM forecast for Sydney Coast (Broken Bay to Port Hacking): winds, seas, swell, weather and cautions for today and tomorrow.',
+        data: 'BOM coastal waters forecast (FTP), every 30 minutes.' },
       { selector: '.source-links', title: 'BOM links',
         what: 'Links to the full BOM pages for Sydney waters, warnings and the radar loop, for anything not shown in the app.' }
     ]
@@ -141,9 +139,11 @@ export const SCREENS = [
     title: 'Tools',
     blurb: 'Planning aids for a job. They are aids only; the plotter and charts are the authority.',
     components: [
-      { selector: '#route-from', title: 'Job Route: From and To',
-        what: 'Pick where you are (current GPS or a named place) and the job location. 254 beaches, bays, points, islands and reefs from Figure Eight Pools to Manly, the harbour\'s eastern bays, Botany Bay to Tom Uglys Bridge and Port Hacking to Grays Point.',
-        data: 'OpenStreetMap names, grouped by area.' },
+      { selector: '#route-from-input', title: 'Job Route: From',
+        what: 'Where you are: current GPS or a named place. Type part of a name to filter the list, grouped by area.',
+        data: '254 OpenStreetMap names from Figure Eight Pools to Manly, the harbour\'s eastern bays, Botany Bay to Tom Uglys Bridge and Port Hacking to Grays Point.' },
+      { selector: '#route-to-input', title: 'Job Route: To',
+        what: 'The job location, searched the same way.' },
       { selector: '#route-speed', title: 'Speed',
         what: 'Planned speed in knots, used for the time to the job and the ETA.',
         use: 'Remembered on the device.' },
@@ -152,22 +152,20 @@ export const SCREENS = [
         note: 'Routes go around headlands and rocks, keep mid-channel and follow charted channels where mapped. There is no depth data, so check the chart in shallow water.' },
       { selector: '#route-map', title: 'Route map',
         what: 'The route drawn over the coastline: green start, red job location, dashed red track.' },
-      { selector: '#boundary-toggle', title: '2 NM boundary alarm',
-        what: 'Turns the boundary watch on or off.',
-        use: 'Turn on once under way. Warns 500 m before the 2 NM limit and again beyond it, with sound, vibration (Android) and a notification (Android, or iPhone/iPad with the app on the Home Screen).',
-        note: 'Keep the app open on screen while it is on.' },
-      { selector: '#boundary-map', title: 'Boundary map',
-        what: 'The 2 NM limit (red) and the 500 m warning line (dashed), measured from the outermost land, island, rock platform or reef, with the boat\'s position.',
-        note: 'Mapped from South Head to Cape Baily.' },
-      { selector: '#sdt-speed', title: 'Speed · Distance · Time',
+      { selector: '#sdt-speed', title: 'Calculator: Speed, Distance, Time',
         what: 'Fill in any two and the third is worked out. Knots and nautical miles by default; km/h and km available.',
         use: 'Time answers also show the ETA if leaving now.' },
-      { selector: '#pos-get', title: 'Position',
-        what: 'Current GPS position in degrees and decimal minutes (the radio format), degrees-minutes-seconds and decimal, with the nearest landmark. Also distance and bearing to any landmark, and a converter for positions given in any format.' },
       { selector: '#fuel-onboard', title: 'Fuel & Range',
         what: 'Endurance and radius from fuel on board, burn rate and cruise speed, using the rule of thirds (⅓ out, ⅓ back, ⅓ reserve).',
         use: 'For long searches, tows or jobs outside the usual area. Use a higher burn rate when towing or in heavy seas.',
-        note: 'Needs the real burn rate from the skipper. Tank capacity 450 L.' }
+        note: 'Needs the real burn rate from the skipper. Tank capacity 450 L.' },
+      { selector: '#boundary-toggle', title: '2 NM boundary alarm',
+        what: 'Turns the boundary watch on or off.',
+        use: 'Turn on once under way. Warns 500 m before the 2 NM limit and again beyond it, with sound, vibration (Android) and a notification (Android, or iPhone/iPad with the app on the Home Screen).',
+        note: 'Keep the app open on screen while it is on; see How GPS works.' },
+      { selector: '#boundary-map', title: 'Boundary map',
+        what: 'The 2 NM limit (red) and the 500 m warning line (dashed), measured from the outermost land, island, rock platform or reef, with the boat\'s position.',
+        note: 'Mapped from South Head to Cape Baily.' }
     ]
   },
   {
@@ -177,16 +175,14 @@ export const SCREENS = [
     components: [
       { selector: '#setup-card', title: 'Phone Setup Check',
         what: 'Shows whether Microphone, Location and Notifications are Allowed, Blocked or Not asked yet.',
-        use: 'Each crew member taps Allow access once at the start of a patrol. If anything says Blocked, the steps underneath show how to fix it on iPhone/iPad and Android.' },
+        use: 'Each crew member taps Allow access once at the start of a patrol, or taps any row that says Not asked yet. Tapping a Blocked row opens the steps to unblock it: once blocked, phones only let you change it in settings.' },
       { selector: '#panel-info details:nth-of-type(1)', title: 'Surf Rescue 30 quick facts',
         what: 'Callsign, base, coverage, operations, vessel, survey, fuel, tasking (13SURF), comms, navigation, safety gear, equipment and the ORB coordinator contact.' },
       { selector: '#panel-info details:nth-of-type(2)', title: 'Distress, urgency & safety calls',
         what: 'MAYDAY, PAN-PAN and SÉCURITÉ call formats and channel 16.' },
       { selector: '#panel-info details:nth-of-type(3)', title: 'Phonetic alphabet & prowords' },
       { selector: '#panel-info details:nth-of-type(4)', title: 'Beaufort scale',
-        what: 'Force, knots, description and sea state, with the Strong Wind and Gale Warning thresholds.' },
-      { selector: '#panel-info details:nth-of-type(5)', title: 'Patrol log form categories',
-        what: 'The weather, sea, swell and wind categories and patrol statistics from the paper form, for filling it in.' }
+        what: 'Force, knots, description and sea state, with the Strong Wind and Gale Warning thresholds.' }
     ]
   },
   {
@@ -199,5 +195,25 @@ export const SCREENS = [
       { selector: '#edit-delete', title: 'Delete', what: 'Removes the entry after a confirmation.' },
       { selector: '#edit-save', title: 'Save', what: 'Keeps the corrected text. The time and position stay as recorded.' }
     ]
+  }
+];
+
+// Text-only sections shown after the screens: how things behave over time,
+// which a screenshot can't show.
+export const EXPLAINERS = [
+  {
+    id: 'gps',
+    title: 'How GPS works',
+    blurb: 'The app is a website, so it only gets GPS while it is open on screen. Here is exactly when a position is taken.',
+    rows: [
+      { when: 'Voice entry', what: 'One GPS fix is taken when you tap Log Entry. The entry is stamped with it, plus the nearest landmark. If the fix arrives after you tap Stop, it is added to the entry a moment later.' },
+      { when: 'Mark button', what: 'One fresh GPS fix, taken the moment you tap it (waits up to 20 seconds for a good fix).' },
+      { when: 'Job Route from "Current GPS position"', what: 'One fix when the route is worked out. It does not follow the boat; pick the start again to recalculate.' },
+      { when: '2 NM boundary alarm', what: 'Watches GPS continuously while the alarm is on and the app is open on screen, updating every few seconds as the boat moves. The screen is kept awake so it stays on.' },
+      { when: 'Phone locked, or another app open', what: 'GPS stops. Phones pause websites in the background, so the boundary alarm cannot warn you while the phone is locked or you are in another app. Nothing is recorded in the meantime.' },
+      { when: 'Back in the app', what: 'The boundary alarm resumes automatically and takes a new fix within a few seconds. Earlier entries keep the positions they were saved with.' },
+      { when: 'No signal', what: 'GPS still works with no mobile signal (it comes from satellites), so positions and the boundary alarm keep working. Voice entry and weather need signal.' }
+    ],
+    note: 'For continuous tracking with the phone locked, a native app would be needed. The boat\'s plotter is the authority for position.'
   }
 ];

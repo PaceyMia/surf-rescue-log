@@ -18,10 +18,10 @@ Mobile-first voice log and toolkit for the Surf Rescue 30 offshore rescue boat (
 | `geo.js` | DDM/DMS formatting, distance/bearing, nearest landmark, position parsing |
 | `coast.js` | Generated coastline + outcrops (South Head → Cape Baily), pre-computed 2 NM / warning lines, and the navigable-water grid for routing |
 | `geofence.js` | 2 NM boundary alarm (watchPosition) and SVG map |
-| `route.js` | Job route by water (A* on the navigable grid, ≥100 m off land), courses, time at speed, route map |
+| `route.js` | Job route by water (A* on the navigable grid; 50 m off land, 25 m in estuaries), searchable From/To pickers, courses, time at speed, route map |
 | `setup.js` | Phone setup check: mic / location / notification permissions with one-tap request |
-| `weather.js` | Warnings (badge + Log banner), BOM forecast and WillyWeather from `weather.json`; Open-Meteo now tiles, tide, 24 h strip; sun/first/last light computed locally; wind units (kn/km/h) remembered; Windy (wind, waves) and RainViewer radar (auto-play) maps, one iframe per layer |
-| `tools.js` | Speed/distance/time, position & bearing, fuel range (rule of thirds) |
+| `weather.js` | Sydney-only warnings (badge + Log banner) and Sydney Coast BOM forecast from `weather.json`; Open-Meteo now tiles, tide ("Near high/low" within the estimate's margin), 24 h strip; sun/first/last light computed locally; wind units (kn/km/h) remembered; Windy wind/waves/radar maps loaded only when scrolled to, one iframe per layer; data prefetched at start-up and a loading screen until it's in |
+| `tools.js` | Speed/distance/time calculator, fuel range (rule of thirds) |
 | `config.js` | `dataUrl` (raw URL of `weather.json`), forecast point |
 | `sw.js` / `manifest.webmanifest` / `icons/` | App shell cache (network-first), Home Screen install |
 | `.github/workflows/weather-data.yml` + `data-scripts/fetch_weather.mjs` | Every 30 min: BOM coastal/local waters forecasts and current NSW warning products via BOM's anonymous FTP, WillyWeather via API (repo secret `WW_API_KEY`), published to the `weather-data` branch |
@@ -40,7 +40,6 @@ Push to talk: one tap starts one recognition session, the next tap stops and sav
 - The boundary alarm only runs while the app is open on screen (web apps get no background GPS). Notifications on iPhone/iPad need the app added to the Home Screen.
 - Boundary data covers South Head → Cape Baily only; Botany Bay interior is excluded (all within 2 NM).
 - BOM's website refuses automated requests; only use the FTP service for BOM files. Don't spoof a browser user agent.
-- BOM warning products (IDN2xxxx) are parsed for their titles only; `raw-warnings/` on the weather-data branch holds samples while the parser is refined.
 - WillyWeather field names in `fetch_weather.mjs` need checking against the first live response once `WW_API_KEY` is set.
 - Tide is a model estimate (Open-Meteo sea level) until WillyWeather tides are available.
 
